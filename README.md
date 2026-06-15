@@ -64,6 +64,20 @@ node server.js
 
 Render 会自动注入 `PORT`，服务端已兼容。
 
+## Vercel 部署
+
+如果 Render 注册或 CAPTCHA 不可用，可以直接用 Vercel 连接 GitHub 仓库部署。
+
+- Framework Preset：Other
+- Build Command：留空
+- Output Directory：留空
+- Install Command：留空或 `npm install`
+- Environment Variables：
+  - `DEEPSEEK_API_KEY`
+  - `DEEPSEEK_MODEL=deepseek-chat`
+
+Vercel 部署使用 `api/index.js` 作为 Serverless API。云端演示环境里的用户/商品新增数据使用内存存储，适合课程展示；如果要长期保存数据，需要接入云数据库。
+
 ## 数据文件
 
 - `data/category-knowledge.json`

@@ -1,66 +1,47 @@
-const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const root = __dirname;
-const publicDir = path.join(root, "public");
+const root = path.join(__dirname, "..");
 const dataDir = path.join(root, "data");
-const dbFile = path.join(dataDir, "db.json");
-const port = Number(process.env.PORT || 5173);
 const deepSeekKey = process.env.DEEPSEEK_API_KEY || "";
 const deepSeekModel = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
-const mime = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".svg": "image/svg+xml"
-};
-
-function send(res, status, body, type = "application/json; charset=utf-8") {
-  res.writeHead(status, {
-    "Content-Type": type,
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
-  });
-  if (Buffer.isBuffer(body)) return res.end(body);
-  res.end(typeof body === "string" ? body : JSON.stringify(body));
+function send(res, status, body) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.end(JSON.stringify(body));
 }
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(path.join(dataDir, file), "utf8"));
 }
 
-function writeDb(db) {
-  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2), "utf8");
-}
-
-function readDb() {
-  if (!fs.existsSync(dbFile)) {
-    writeDb({ users: [], products: [] });
-  }
-  const db = JSON.parse(fs.readFileSync(dbFile, "utf8"));
-  if (!Array.isArray(db.users)) db.users = [];
-  if (!Array.isArray(db.products)) db.products = [];
-  if (!db.products.length) {
-    db.products = readJson("sample-products.json").map((item, index) => ({
+function seedDb() {
+  return {
+    users: [
+      { id: "u1", name: "林同学", campus: "南校区", trustScore: 86, createdAt: new Date().toISOString() },
+      { id: "u2", name: "周同学", campus: "北校区", trustScore: 82, createdAt: new Date().toISOString() }
+    ],
+    products: readJson("sample-products.json").map((item, index) => ({
       ...item,
       sellerId: index % 2 === 0 ? "u1" : "u2",
       sellerName: index % 2 === 0 ? "林同学" : "周同学",
       campus: index % 2 === 0 ? "南校区" : "北校区",
       createdAt: new Date(Date.now() - index * 3600 * 1000).toISOString()
-    }));
-    writeDb(db);
-  }
-  return db;
+    }))
+  };
+}
+
+function readDb() {
+  if (!globalThis.__campusLoopDb) globalThis.__campusLoopDb = seedDb();
+  return globalThis.__campusLoopDb;
 }
 
 async function readBody(req) {
+  if (req.body && typeof req.body === "object") return req.body;
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   if (!chunks.length) return {};
@@ -162,13 +143,6 @@ function fallbackCustomerService(message = "", products = []) {
       suggestions: ["查看交易凭证", "联系卖家协商", "申请平台介入"]
     };
   }
-  if (text.includes("验货") || text.includes("真假") || text.includes("安全")) {
-    return {
-      provider: "local-fallback",
-      reply: "建议优先同校当面交易。数码商品重点检查外观、序列号、电池健康、屏幕、摄像头和配件；交易前不要脱离平台转账。",
-      suggestions: ["生成验货清单", "查看风控提示", "搜索同类商品"]
-    };
-  }
   const hit = products.find((item) => text.includes(item.category) || item.tags?.some((tag) => text.includes(tag)));
   return {
     provider: "local-fallback",
@@ -211,15 +185,8 @@ const apiHandlers = {
     const campus = String(body.campus || "").trim() || "未填写校区";
     const existing = db.users.find((user) => user.name === name && user.campus === campus);
     if (existing) return existing;
-    const user = {
-      id: `u${Date.now()}`,
-      name,
-      campus,
-      trustScore: 82,
-      createdAt: new Date().toISOString()
-    };
+    const user = { id: `u${Date.now()}`, name, campus, trustScore: 82, createdAt: new Date().toISOString() };
     db.users.unshift(user);
-    writeDb(db);
     return user;
   },
   "/api/products": async (body) => {
@@ -240,59 +207,38 @@ const apiHandlers = {
       createdAt: new Date().toISOString()
     };
     db.products.unshift(product);
-    writeDb(db);
     return product;
   }
 };
 
-function serveStatic(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  let filePath = url.pathname === "/" ? path.join(publicDir, "index.html") : path.join(root, url.pathname);
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(publicDir, url.pathname);
-  }
-  if (!filePath.startsWith(root)) return send(res, 403, "Forbidden", "text/plain; charset=utf-8");
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(publicDir, "index.html");
-  }
-  const ext = path.extname(filePath).toLowerCase();
-  send(res, 200, fs.readFileSync(filePath), mime[ext] || "application/octet-stream");
-}
-
-http
-  .createServer(async (req, res) => {
-    if (req.method === "OPTIONS") return send(res, 204, "");
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    if (req.method === "GET" && url.pathname === "/api/products") {
-      return send(res, 200, { ok: true, data: readDb().products });
-    }
-    if (req.method === "GET" && url.pathname === "/api/users") {
-      return send(res, 200, { ok: true, data: readDb().users });
-    }
-    if (req.method === "POST" && apiHandlers[url.pathname]) {
+module.exports = async function handler(req, res) {
+  if (req.method === "OPTIONS") return send(res, 204, {});
+  const url = new URL(req.url, `https://${req.headers.host || "localhost"}`);
+  const pathname = url.pathname;
+  try {
+    if (req.method === "GET" && pathname === "/api/products") return send(res, 200, { ok: true, data: readDb().products });
+    if (req.method === "GET" && pathname === "/api/users") return send(res, 200, { ok: true, data: readDb().users });
+    if (req.method === "POST" && apiHandlers[pathname]) {
       const body = await readBody(req);
-      try {
-        const data = await apiHandlers[url.pathname](body);
-        return send(res, 200, { ok: true, data, deepSeekEnabled: Boolean(deepSeekKey) });
-      } catch (error) {
-        const fallback =
-          url.pathname === "/api/generate-listing"
-            ? fallbackListing(body)
-            : url.pathname === "/api/extract-attributes"
-              ? fallbackAttributes(body.rawText)
-              : url.pathname === "/api/customer-service"
-                ? fallbackCustomerService(body.message, readDb().products)
-                : fallbackSearchIntent(body.query);
-        return send(res, 200, {
-          ok: true,
-          data: fallback,
-          deepSeekEnabled: Boolean(deepSeekKey),
-          warning: "DeepSeek unavailable, local fallback used."
-        });
-      }
+      const data = await apiHandlers[pathname](body);
+      return send(res, 200, { ok: true, data, deepSeekEnabled: Boolean(deepSeekKey) });
     }
-    serveStatic(req, res);
-  })
-  .listen(port, () => {
-    console.log(`AI second-hand workbench running at http://localhost:${port}`);
-  });
+    return send(res, 404, { ok: false, error: "Not found" });
+  } catch (error) {
+    const body = req.body || {};
+    const fallback =
+      pathname === "/api/generate-listing"
+        ? fallbackListing(body)
+        : pathname === "/api/extract-attributes"
+          ? fallbackAttributes(body.rawText)
+          : pathname === "/api/customer-service"
+            ? fallbackCustomerService(body.message, readDb().products)
+            : fallbackSearchIntent(body.query);
+    return send(res, 200, {
+      ok: true,
+      data: fallback,
+      deepSeekEnabled: Boolean(deepSeekKey),
+      warning: "DeepSeek unavailable, local fallback used."
+    });
+  }
+};
