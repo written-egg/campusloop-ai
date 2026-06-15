@@ -247,12 +247,20 @@ const apiHandlers = {
 
 function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  let filePath = url.pathname === "/" ? path.join(publicDir, "index.html") : path.join(root, url.pathname);
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(publicDir, url.pathname);
-  }
+  const pathname = decodeURIComponent(url.pathname);
+  const hasExtension = Boolean(path.extname(pathname));
+  const relativePath = pathname.replace(/^\/+/, "");
+  let filePath =
+    pathname === "/"
+      ? path.join(publicDir, "index.html")
+      : pathname.startsWith("/data/")
+        ? path.join(root, relativePath)
+        : path.join(publicDir, relativePath);
+
+  filePath = path.normalize(filePath);
   if (!filePath.startsWith(root)) return send(res, 403, "Forbidden", "text/plain; charset=utf-8");
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    if (hasExtension) return send(res, 404, "Not found", "text/plain; charset=utf-8");
     filePath = path.join(publicDir, "index.html");
   }
   const ext = path.extname(filePath).toLowerCase();

@@ -1,6 +1,13 @@
 {
   "users": [
     {
+      "id": "u1781530319461",
+      "name": "张同学",
+      "campus": "南校区",
+      "trustScore": 82,
+      "createdAt": "2026-06-15T13:31:59.461Z"
+    },
+    {
       "id": "u1",
       "name": "林同学",
       "campus": "南校区",
@@ -17,12 +24,39 @@
   ],
   "products": [
     {
+      "id": "p1781530320936",
+      "name": "iPhone 13 128G",
+      "category": "数码电子",
+      "price": 2512,
+      "condition": "九成新",
+      "tags": [
+        "同校交易",
+        "可当面验货",
+        "价格参考透明",
+        "AI辅助发布",
+        "Apple",
+        "iPhone 13 128G"
+      ],
+      "score": 4.5,
+      "views": 0,
+      "image": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
+      "sellerId": "u1781530319461",
+      "sellerName": "张同学",
+      "campus": "南校区",
+      "createdAt": "2026-06-15T13:32:00.936Z"
+    },
+    {
       "id": "p1",
       "name": "九成新 iPhone 13 128G",
       "category": "数码电子",
       "price": 2799,
       "condition": "九成新",
-      "tags": ["手机", "Apple", "校园自提", "拍照清晰"],
+      "tags": [
+        "手机",
+        "Apple",
+        "校园自提",
+        "拍照清晰"
+      ],
       "score": 4.8,
       "views": 428,
       "image": "https://images.unsplash.com/photo-1591337676887-a217a6970a8a?auto=format&fit=crop&w=800&q=80",
@@ -37,7 +71,12 @@
       "category": "运动户外",
       "price": 829,
       "condition": "九成新",
-      "tags": ["滑雪", "新手", "冬季运动", "含固定器"],
+      "tags": [
+        "滑雪",
+        "新手",
+        "冬季运动",
+        "含固定器"
+      ],
       "score": 4.6,
       "views": 181,
       "image": "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=800&q=80",
@@ -52,10 +91,15 @@
       "category": "生活用品",
       "price": 319,
       "condition": "九成新",
-      "tags": ["宿舍", "小冰箱", "低噪音", "自提"],
+      "tags": [
+        "宿舍",
+        "小冰箱",
+        "低噪音",
+        "自提"
+      ],
       "score": 4.7,
       "views": 236,
-      "image": "https://images.unsplash.com/photo-1582724372445-44dc5f7e3c8f?auto=format&fit=crop&w=800&q=80",
+      "image": "/assets/mini-fridge.jpg",
       "sellerId": "u1",
       "sellerName": "林同学",
       "campus": "南校区",
@@ -67,7 +111,12 @@
       "category": "图书教材",
       "price": 45,
       "condition": "八成新",
-      "tags": ["教材", "高数", "期末复习", "低价"],
+      "tags": [
+        "教材",
+        "高数",
+        "期末复习",
+        "低价"
+      ],
       "score": 4.3,
       "views": 97,
       "image": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80",

@@ -9,6 +9,7 @@ const state = {
   listing: null,
   latestPrice: null,
   sellerPriceTouched: false,
+  uploads: {},
   activeRoute: "market"
 };
 
@@ -61,6 +62,34 @@ function escapeText(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function fallbackImage(label = "商品图", tone = "#d8ff4f") {
+  const safeLabel = String(label || "商品图").slice(0, 8);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640">
+      <rect width="900" height="640" fill="#f8f6ec"/>
+      <path d="M0 0h900v640H0z" fill="none"/>
+      <g opacity=".5" stroke="#d8d4c4" stroke-width="2">
+        ${Array.from({ length: 19 }, (_, i) => `<path d="M${i * 50} 0v640"/>`).join("")}
+        ${Array.from({ length: 14 }, (_, i) => `<path d="M0 ${i * 50}h900"/>`).join("")}
+      </g>
+      <rect x="118" y="132" width="664" height="376" rx="44" fill="${tone}" stroke="#080d0b" stroke-width="10"/>
+      <circle cx="450" cy="276" r="66" fill="#f8f6ec" stroke="#080d0b" stroke-width="10"/>
+      <path d="M300 436h300" stroke="#080d0b" stroke-width="18" stroke-linecap="round"/>
+      <text x="450" y="575" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="58" font-weight="900" fill="#080d0b">${safeLabel}</text>
+    </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function imageFallbackFor(category) {
+  const tones = {
+    数码电子: "#d8ff4f",
+    运动户外: "#ff765d",
+    生活用品: "#d7e7ec",
+    图书教材: "#efe6c5"
+  };
+  return fallbackImage(category || "商品图", tones[category] || "#d8ff4f");
 }
 
 function setRoute(routeName) {
@@ -183,7 +212,7 @@ function renderMarketProducts(category = "all") {
     .map(
       (item) => `
         <article class="market-card" data-id="${escapeText(item.id)}">
-          <img src="${escapeText(item.image)}" alt="${escapeText(item.name)}">
+          <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div class="market-card-body">
             <div class="market-card-meta">
               <span>${escapeText(item.category)}</span>
@@ -197,6 +226,12 @@ function renderMarketProducts(category = "all") {
       `
     )
     .join("");
+
+  document.querySelectorAll(".market-card img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
 
   document.querySelectorAll(".market-card").forEach((card) => {
     card.addEventListener("click", () => {
@@ -329,13 +364,14 @@ async function saveCurrentProduct() {
   $("publishProductBtn").disabled = true;
   $("publishProductBtn").textContent = "发布中";
   try {
+    const productImage = await getUploadImageSrc("previewImage");
     const productResponse = await postJson("/api/products", {
       name: $("productNameInput").value.trim() || state.listing.title,
       category: state.recognition.category,
       price: Number($("sellerPriceInput").value) || state.latestPrice?.suggested || 99,
       condition: state.recognition.condition,
       tags: [...(state.listing.sellingPoints || []), state.recognition.brand, state.recognition.model].filter(Boolean),
-      image: $("previewImage").src,
+      image: productImage,
       sellerId: state.currentUser.id,
       sellerName: state.currentUser.name,
       campus: state.currentUser.campus
@@ -383,7 +419,7 @@ function renderSearchResults(products, reason = "") {
     .map(
       (item) => `
         <article class="result-card" data-id="${escapeText(item.id)}">
-          <img src="${escapeText(item.image)}" alt="${escapeText(item.name)}">
+          <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div>
             <h3>${escapeText(item.name)}</h3>
             <p>${escapeText(item.category)} · ${escapeText(item.condition)} · ${escapeText((item.tags || []).join(" / "))}${reason ? ` · ${escapeText(reason)}` : ""}</p>
@@ -393,6 +429,12 @@ function renderSearchResults(products, reason = "") {
       `
     )
     .join("");
+
+  document.querySelectorAll(".result-card img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
 }
 
 async function semanticSearch() {
@@ -486,11 +528,84 @@ function runAuthenticityCheck() {
   $("authFindings").innerHTML = findings.map((item) => `<div>${escapeText(item)}</div>`).join("");
 }
 
+function fileToCompressedDataUrl(file, maxSize = 1200, quality = 0.78) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = reject;
+      image.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function getUploadImageSrc(imageId) {
+  if (state.uploads[imageId]) {
+    try {
+      return await state.uploads[imageId];
+    } catch {
+      // Fall back to the current preview if the browser cannot decode the file.
+    }
+  }
+  return $(imageId).dataset.uploadDataUrl || $(imageId).src;
+}
+
 function bindUpload(inputId, imageId) {
-  $(inputId).addEventListener("change", (event) => {
+  $(inputId).addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    $(imageId).src = URL.createObjectURL(file);
+    if (!file.type.startsWith("image/")) {
+      alert("请上传图片文件");
+      return;
+    }
+
+    const image = $(imageId);
+    const previewUrl = URL.createObjectURL(file);
+    image.src = previewUrl;
+    image.dataset.uploadDataUrl = "";
+
+    state.uploads[imageId] = (async () => {
+      try {
+        const dataUrl = await fileToCompressedDataUrl(file);
+        image.src = dataUrl;
+        image.dataset.uploadDataUrl = dataUrl;
+        URL.revokeObjectURL(previewUrl);
+        return dataUrl;
+      } catch {
+        const dataUrl = await fileToDataUrl(file);
+        image.src = dataUrl;
+        image.dataset.uploadDataUrl = dataUrl;
+        URL.revokeObjectURL(previewUrl);
+        return dataUrl;
+      }
+    })();
+
+    try {
+      await state.uploads[imageId];
+    } catch {
+      alert("图片读取失败，请换一张图片");
+    }
   });
 }
 
