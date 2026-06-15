@@ -1,0 +1,6 @@
+[
+  { "id": "r1", "name": "异常低价", "type": "price", "threshold": 0.55, "level": "high", "message": "价格显著低于建议区间，建议买家重点核验真伪、序列号和交易方式。" },
+  { "id": "r2", "name": "异常高价", "type": "price", "threshold": 1.45, "level": "medium", "message": "价格高于市场区间，建议卖家补充配件、保修或成色说明。" },
+  { "id": "r3", "name": "站外交易风险", "type": "text", "keywords": ["微信", "手机号", "QQ", "转账", "定金"], "level": "medium", "message": "文案包含站外联系或提前转账线索，建议保留平台内沟通和当面验货。" },
+  { "id": "r4", "name": "新账号发布", "type": "account", "level": "medium", "message": "新账号发布高价商品时，建议增加发票、序列号、配件合照等可信材料。" }
+]

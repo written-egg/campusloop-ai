@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: campusloop-ai
+    env: node
+    plan: free
+    buildCommand: ""
+    startCommand: npm start
+    envVars:
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: DEEPSEEK_API_KEY
+        sync: false

@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+*.zip
+deploy-package/
+vue3_trade_backend/
+.claude/
+.cache/
+dist/
+build/

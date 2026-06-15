@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CampusLoop AI 二手市场</title>
+    <link rel="stylesheet" href="/public/styles.css?v=20260615-3" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#market" aria-label="CampusLoop 首页">
+        <span class="brand-mark">循</span>
+        <span>CampusLoop AI</span>
+      </a>
+
+      <nav class="nav-list" aria-label="主导航">
+        <a href="#market" data-route="market">首页</a>
+        <a href="#estimate" data-route="estimate">智能估价</a>
+        <a href="#authenticity" data-route="authenticity">真伪识别</a>
+        <a href="#publish" data-route="publish">发布商品</a>
+        <a href="#search" data-route="search">精准匹配</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="cta-pill" href="#login">登录</a>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="page active" id="page-market" data-title="让闲置被重新看见" data-kicker="校园二手 AI 市场">
+        <section class="hero-grid">
+          <div class="hero-copy">
+            <div class="eyebrow">AI 让二手交易少一点猜测</div>
+            <h1>让闲置<br />被重新看见</h1>
+            <p>用智能估价、真伪风险识别和语义匹配，帮助每一件校园好物找到更合适的下一任主人。</p>
+            <div class="hero-actions">
+              <a class="primary-action" href="#estimate">开始 AI 估价 <span>→</span></a>
+              <a class="secondary-action" href="#publish">发布我的商品</a>
+            </div>
+            <div class="trust-strip">
+              <span>可解释 AI 结果</span>
+              <span>风险提示透明</span>
+              <span>鼓励当面验货</span>
+            </div>
+          </div>
+
+          <div class="hero-device" aria-label="智能估价示例">
+            <div class="device-top">
+              <span>智能估价报告</span>
+              <strong>↻</strong>
+            </div>
+            <div class="device-photo">
+              <span>相机识别</span>
+            </div>
+            <div class="device-meta">富士 X100V · 95新 · 原盒齐全</div>
+            <small>AI 建议售价</small>
+            <div class="device-price">¥ 9,680</div>
+            <b class="floating-note orange">预计 3 天成交</b>
+            <b class="floating-note lime">AI 置信度 91%</b>
+          </div>
+        </section>
+
+        <section class="market-panel">
+          <div class="section-head">
+            <div>
+              <p class="kicker">循环市集</p>
+              <h2>同学正在出售</h2>
+            </div>
+            <div class="market-tabs">
+              <button class="tab-button active" data-filter="all">全部</button>
+              <button class="tab-button" data-filter="数码电子">数码</button>
+              <button class="tab-button" data-filter="运动户外">运动</button>
+              <button class="tab-button" data-filter="生活用品">生活</button>
+              <button class="tab-button" data-filter="图书教材">教材</button>
+            </div>
+          </div>
+          <div id="marketGrid" class="market-grid"></div>
+        </section>
+      </section>
+
+      <section class="page" id="page-estimate" data-title="智能估价" data-kicker="L1 参数库 + L2 成交拟合">
+        <section class="tool-layout">
+          <form class="tool-card" id="estimateForm">
+            <p class="kicker">智能估价</p>
+            <h2>输入商品信息，生成建议参考价。</h2>
+            <div class="field-grid">
+              <label>商品品类<select id="estimateCategory"></select></label>
+              <label>品牌/型号<input id="estimateModel" value="iPhone 13 128G" /></label>
+              <label>成色<select id="estimateCondition">
+                <option>全新</option>
+                <option selected>九成新</option>
+                <option>八成新</option>
+                <option>七成新</option>
+              </select></label>
+              <label>配件状态<select id="estimateAccessory">
+                <option value="full">原盒配件齐全</option>
+                <option value="partial">部分配件</option>
+                <option value="none">无配件</option>
+              </select></label>
+            </div>
+            <button type="submit">重新估价</button>
+          </form>
+          <aside class="report-card">
+            <p class="kicker">估价报告</p>
+            <strong id="estimatePrice">--</strong>
+            <span id="estimateRange">等待估价</span>
+            <div id="estimateReasons" class="reason-list"></div>
+          </aside>
+        </section>
+      </section>
+
+      <section class="page" id="page-authenticity" data-title="真伪识别" data-kicker="图片 + 序列号 + 价格风险">
+        <section class="tool-layout">
+          <div class="tool-card">
+            <p class="kicker">真伪识别</p>
+            <h2>上传图片，补充序列号和卖家描述，生成可信度与验货清单。</h2>
+            <div class="auth-grid">
+              <label class="auth-image">
+                <img id="authPreview" alt="真伪识别预览" src="https://images.unsplash.com/photo-1603891128711-11b4b03bb138?auto=format&fit=crop&w=900&q=80" />
+                <span>上传商品图</span>
+                <input id="authImageInput" type="file" accept="image/*" />
+              </label>
+              <div class="form-stack">
+                <label>识别品类<select id="authCategory"></select></label>
+                <label>品牌型号<input id="authModel" value="iPhone 13 128G" /></label>
+                <label>卖家报价<input id="authPrice" type="number" value="2599" /></label>
+                <label>序列号/防伪码<input id="authSerial" placeholder="可选，填写后提升可信度" /></label>
+                <label>卖家描述<textarea id="authDescription" rows="4" placeholder="例如：国行、原盒齐全、有购买记录、电池健康 88%"></textarea></label>
+                <button id="authCheckBtn" type="button">开始真伪识别</button>
+              </div>
+            </div>
+          </div>
+          <aside class="report-card authenticity-report">
+            <p class="kicker">识别结果</p>
+            <strong id="authScore">--</strong>
+            <span id="authVerdict">等待检测</span>
+            <div id="authFindings" class="reason-list"></div>
+          </aside>
+        </section>
+      </section>
+
+      <section class="page" id="page-publish" data-title="AI 辅助发布商品" data-kicker="卖家工作台">
+        <section class="tool-layout wide">
+          <div class="tool-card">
+            <div class="section-head">
+              <div>
+                <p class="kicker">智能发布</p>
+                <h2>用户简单描述，AI 生成可发布文案。</h2>
+              </div>
+              <button id="generateBtn">生成文案</button>
+            </div>
+            <div class="publish-grid">
+              <label class="auth-image">
+                <img id="previewImage" alt="商品预览" src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80" />
+                <span>上传商品图</span>
+                <input id="imageInput" type="file" accept="image/*" />
+              </label>
+              <div class="form-stack">
+                <div class="field-row">
+                  <label>商品名称<input id="productNameInput" value="iPhone 13 128G" /></label>
+                  <label>商品品类<select id="categorySelect"></select></label>
+                </div>
+                <label>品牌/型号<input id="brandModelInput" value="Apple iPhone 13 128G" /></label>
+                <label>简单描述<textarea id="rawDescription" rows="5" placeholder="简单写几句即可，例如：自用两年，电池 88%，原装线还在，支持同校自提。"></textarea></label>
+                <div class="prompt-chips">
+                  <button type="button" data-prompt="自用，无维修，支持当面验货。">自用无维修</button>
+                  <button type="button" data-prompt="配件齐全，支持同校自提。">配件齐全</button>
+                  <button type="button" data-prompt="有轻微使用痕迹，不影响功能。">轻微痕迹</button>
+                </div>
+                <div class="field-row">
+                  <label>成色<select id="conditionSelect">
+                    <option>全新</option>
+                    <option selected>九成新</option>
+                    <option>八成新</option>
+                    <option>七成新</option>
+                  </select></label>
+                  <label>账号状态<select id="accountSelect">
+                    <option value="normal">老用户</option>
+                    <option value="new">新注册账号</option>
+                  </select></label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="report-card publish-report">
+            <p class="kicker">发布结果</p>
+            <div id="recognitionResult" class="tag-list"></div>
+            <h2 id="listingTitle">等待生成</h2>
+            <p id="listingDescription">点击“生成文案”或“发布商品”后，系统会生成标题、描述、估价和风控提示。</p>
+            <label class="seller-price-field">发布价格<input id="sellerPriceInput" type="number" min="1" step="1" placeholder="填写你的挂牌价" /></label>
+            <div class="publish-actions">
+              <button id="publishProductBtn">发布商品</button>
+              <button id="generateBtnSecondary" class="ghost-button">只生成文案</button>
+            </div>
+            <small id="saveStatus" class="save-status"></small>
+          </aside>
+        </section>
+
+        <section class="dual-panels">
+          <div class="mini-panel">
+            <p class="kicker">基础估价</p>
+            <strong id="suggestedPrice">--</strong>
+            <span id="priceRange">等待估价</span>
+            <div id="priceReason" class="reason-list"></div>
+          </div>
+          <div class="mini-panel">
+            <p class="kicker">发布前风控</p>
+            <div id="riskBox" class="reason-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="page-search" data-title="精准匹配" data-kicker="语义搜索">
+        <section class="search-hero">
+          <p class="kicker">精准匹配</p>
+          <h2>不用记关键词，直接说需求。</h2>
+          <div class="search-box">
+            <input id="searchInput" value="适合新手的滑雪板，预算 1000 以内" />
+            <button id="searchBtn">搜索</button>
+          </div>
+          <div id="intentBox" class="tag-list"></div>
+        </section>
+        <div id="searchResults" class="result-list"></div>
+      </section>
+
+      <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
+        <section class="login-layout">
+          <div class="login-hero">
+            <p class="kicker">轻量登录</p>
+            <h2>用昵称和校区创建演示账号。</h2>
+            <p>课程演示版只用于绑定发布商品，不做密码和真实身份认证。</p>
+          </div>
+          <form class="tool-card" id="loginForm">
+            <label>昵称<input id="loginNameInput" value="林同学" /></label>
+            <label>校区<input id="loginCampusInput" value="南校区" /></label>
+            <small id="loginStatus" class="save-status"></small>
+            <div class="current-user-card">
+              <span>当前用户</span>
+              <strong id="currentUserText">未登录</strong>
+            </div>
+            <button class="login-submit" type="submit">登录并继续发布</button>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <script src="/public/app.js?v=20260615-2"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+[
+  { "category": "数码电子", "model": "iPhone 13 128G", "price": 2580, "condition": "九成新", "soldAt": "2026-05-26" },
+  { "category": "数码电子", "model": "iPhone 13 128G", "price": 2420, "condition": "九成新", "soldAt": "2026-06-02" },
+  { "category": "数码电子", "model": "iPhone 13 128G", "price": 2688, "condition": "九成新", "soldAt": "2026-06-09" },
+  { "category": "数码电子", "model": "MacBook Air M1", "price": 3450, "condition": "八成新", "soldAt": "2026-06-05" },
+  { "category": "运动户外", "model": "HEAD 新手滑雪板", "price": 820, "condition": "九成新", "soldAt": "2026-05-30" },
+  { "category": "运动户外", "model": "HEAD 新手滑雪板", "price": 760, "condition": "八成新", "soldAt": "2026-06-07" },
+  { "category": "生活用品", "model": "宿舍小冰箱", "price": 310, "condition": "九成新", "soldAt": "2026-05-29" },
+  { "category": "生活用品", "model": "护眼台灯", "price": 118, "condition": "九成新", "soldAt": "2026-06-04" },
+  { "category": "图书教材", "model": "高数教材套装", "price": 48, "condition": "八成新", "soldAt": "2026-06-01" },
+  { "category": "图书教材", "model": "考研英语资料", "price": 92, "condition": "八成新", "soldAt": "2026-06-08" }
+]

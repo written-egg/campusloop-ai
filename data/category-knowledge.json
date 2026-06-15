@@ -1,0 +1,43 @@
+[
+  {
+    "category": "数码电子",
+    "aliases": ["手机", "电脑", "平板", "相机", "耳机", "键盘"],
+    "requiredAttributes": ["品牌", "型号", "内存/容量", "购买年份", "电池健康", "配件", "成色"],
+    "commonBrands": ["Apple", "Huawei", "Xiaomi", "Canon", "Sony", "Lenovo"],
+    "baselineModels": [
+      { "model": "iPhone 13 128G", "basePrice": 3299, "retention": 0.58 },
+      { "model": "MacBook Air M1", "basePrice": 5999, "retention": 0.55 },
+      { "model": "Sony WH-1000XM4", "basePrice": 1999, "retention": 0.48 }
+    ]
+  },
+  {
+    "category": "运动户外",
+    "aliases": ["滑雪", "自行车", "球拍", "帐篷", "冲锋衣", "跑鞋"],
+    "requiredAttributes": ["品牌", "尺码", "适用人群", "使用次数", "磨损位置", "配件"],
+    "commonBrands": ["Decathlon", "Burton", "HEAD", "Nike", "Adidas"],
+    "baselineModels": [
+      { "model": "HEAD 新手滑雪板", "basePrice": 1800, "retention": 0.46 },
+      { "model": "Decathlon 山地车", "basePrice": 1299, "retention": 0.5 }
+    ]
+  },
+  {
+    "category": "图书教材",
+    "aliases": ["教材", "考研", "四六级", "专业书", "小说"],
+    "requiredAttributes": ["书名", "版本", "出版社", "笔记情况", "破损情况"],
+    "commonBrands": ["高等教育出版社", "机械工业出版社", "人民邮电出版社"],
+    "baselineModels": [
+      { "model": "高数教材套装", "basePrice": 120, "retention": 0.35 },
+      { "model": "考研英语资料", "basePrice": 260, "retention": 0.32 }
+    ]
+  },
+  {
+    "category": "生活用品",
+    "aliases": ["宿舍", "台灯", "椅子", "收纳", "小冰箱", "电饭煲"],
+    "requiredAttributes": ["尺寸", "功率", "购买年份", "功能状态", "清洁程度"],
+    "commonBrands": ["Midea", "Haier", "IKEA", "Philips"],
+    "baselineModels": [
+      { "model": "宿舍小冰箱", "basePrice": 699, "retention": 0.45 },
+      { "model": "护眼台灯", "basePrice": 299, "retention": 0.42 }
+    ]
+  }
+]
