@@ -283,6 +283,9 @@ http
         const data = await apiHandlers[url.pathname](body);
         return send(res, 200, { ok: true, data, deepSeekEnabled: Boolean(deepSeekKey) });
       } catch (error) {
+        if (url.pathname === "/api/products" || url.pathname === "/api/users") {
+          return send(res, 500, { ok: false, error: error.message || "Save failed" });
+        }
         const fallback =
           url.pathname === "/api/generate-listing"
             ? fallbackListing(body)

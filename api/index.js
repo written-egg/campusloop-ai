@@ -226,6 +226,9 @@ module.exports = async function handler(req, res) {
     return send(res, 404, { ok: false, error: "Not found" });
   } catch (error) {
     const body = req.body || {};
+    if (pathname === "/api/products" || pathname === "/api/users") {
+      return send(res, 500, { ok: false, error: error.message || "Save failed" });
+    }
     const fallback =
       pathname === "/api/generate-listing"
         ? fallbackListing(body)

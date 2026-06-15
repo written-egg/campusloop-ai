@@ -14,6 +14,7 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+const LOCAL_PRODUCTS_KEY = "campusLoopLocalProducts";
 
 const routes = {
   market: "page-market",
@@ -90,6 +91,39 @@ function imageFallbackFor(category) {
     图书教材: "#efe6c5"
   };
   return fallbackImage(category || "商品图", tones[category] || "#d8ff4f");
+}
+
+function loadLocalProducts() {
+  try {
+    const products = JSON.parse(localStorage.getItem(LOCAL_PRODUCTS_KEY) || "[]");
+    return Array.isArray(products) ? products : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalProducts(products) {
+  localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(products.slice(0, 30)));
+}
+
+function rememberLocalProduct(product) {
+  if (!product?.id) return;
+  const products = [product, ...loadLocalProducts().filter((item) => item.id !== product.id)];
+  saveLocalProducts(products);
+}
+
+function mergeProducts(remoteProducts = []) {
+  const merged = new Map();
+  [...loadLocalProducts(), ...remoteProducts].forEach((product) => {
+    if (product?.id && !merged.has(product.id)) merged.set(product.id, product);
+  });
+  return [...merged.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function showAllMarketTab() {
+  document.querySelectorAll(".tab-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.filter === "all");
+  });
 }
 
 function setRoute(routeName) {
@@ -243,7 +277,7 @@ function renderMarketProducts(category = "all") {
 
 async function refreshProducts() {
   const response = await getJson("/api/products");
-  state.products = response.data || [];
+  state.products = mergeProducts(response.data || []);
   renderMarketProducts(document.querySelector(".tab-button.active")?.dataset.filter || "all");
   renderSearchResults(state.products.slice(0, 4));
 }
@@ -365,7 +399,7 @@ async function saveCurrentProduct() {
   $("publishProductBtn").textContent = "发布中";
   try {
     const productImage = await getUploadImageSrc("previewImage");
-    const productResponse = await postJson("/api/products", {
+    const payload = {
       name: $("productNameInput").value.trim() || state.listing.title,
       category: state.recognition.category,
       price: Number($("sellerPriceInput").value) || state.latestPrice?.suggested || 99,
@@ -375,9 +409,29 @@ async function saveCurrentProduct() {
       sellerId: state.currentUser.id,
       sellerName: state.currentUser.name,
       campus: state.currentUser.campus
-    });
-    $("saveStatus").textContent = `发布成功：${productResponse.data.name}`;
-    await refreshProducts();
+    };
+    let product = null;
+    try {
+      const productResponse = await postJson("/api/products", payload);
+      if (!productResponse.ok || !productResponse.data?.name) throw new Error(productResponse.error || "发布接口未返回商品");
+      product = productResponse.data;
+    } catch {
+      product = {
+        id: `local-${Date.now()}`,
+        ...payload,
+        score: 4.5,
+        views: 0,
+        createdAt: new Date().toISOString(),
+        localOnly: true
+      };
+    }
+
+    rememberLocalProduct(product);
+    state.products = mergeProducts([product, ...state.products]);
+    showAllMarketTab();
+    renderMarketProducts("all");
+    renderSearchResults(state.products.slice(0, 4));
+    $("saveStatus").textContent = `发布成功：${product.name}`;
     location.hash = "market";
   } finally {
     $("publishProductBtn").disabled = false;
@@ -674,7 +728,7 @@ async function init() {
   ]);
   state.categories = categories;
   state.transactions = transactions;
-  state.products = productsResponse.data || [];
+  state.products = mergeProducts(productsResponse.data || []);
   state.users = usersResponse.data || [];
   state.risks = risks;
 
