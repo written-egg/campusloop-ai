@@ -137,6 +137,15 @@ function setRoute(routeName) {
 function bindRouter() {
   const apply = () => setRoute((location.hash || "#market").slice(1));
   window.addEventListener("hashchange", apply);
+  document.querySelectorAll("a[data-route]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const route = link.dataset.route;
+      setRoute(route);
+      history.replaceState(null, "", `#${route}`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
   apply();
 }
 
