@@ -370,6 +370,35 @@ label {
   font-weight: 600;
 }
 
+.platform-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.platform-strip div {
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 253, 246, 0.82);
+  box-shadow: var(--shadow-card);
+}
+
+.platform-strip strong {
+  font-family: "Sora", "Noto Sans SC", sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.platform-strip span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .hero-device {
   position: relative;
   min-height: 620px;
@@ -564,6 +593,13 @@ label {
   letter-spacing: -0.01em;
 }
 
+.market-card-desc {
+  min-height: 44px;
+  color: #5c6057;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .market-card-meta {
   display: flex;
   justify-content: space-between;
@@ -576,6 +612,28 @@ label {
 .result-card strong:last-child {
   color: #4e5b07;
   font-family: "Sora", sans-serif;
+  font-weight: 700;
+}
+
+.product-proof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.product-proof span {
+  padding: 5px 9px;
+  border: 1px solid rgba(21, 25, 15, 0.14);
+  border-radius: 999px;
+  color: #2f3d12;
+  background: #f3ffd1;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.seller-line {
+  color: var(--soft);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -861,6 +919,14 @@ label {
   font-size: 14px;
 }
 
+.result-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .chat-card {
   display: grid;
   gap: 18px;
@@ -1007,6 +1073,10 @@ label {
   .market-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .platform-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -1062,6 +1132,7 @@ label {
   }
 
   .market-grid,
+  .platform-strip,
   .field-grid,
   .field-row,
   .publish-grid,

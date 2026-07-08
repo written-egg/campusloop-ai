@@ -57,6 +57,16 @@ function money(value) {
   return `¥${Math.round(Number(value) || 0).toLocaleString("zh-CN")}`;
 }
 
+function discountText(item) {
+  if (!item.originalPrice || Number(item.originalPrice) <= Number(item.price)) return "";
+  const discount = Math.max(1, Math.round((Number(item.price) / Number(item.originalPrice)) * 100));
+  return `${discount}折`;
+}
+
+function productTrust(item) {
+  return Number(item.trust || item.trustScore || 90);
+}
+
 function escapeText(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -253,7 +263,9 @@ function renderMarketProducts(category = "all") {
   const products = category === "all" ? state.products : state.products.filter((item) => item.category === category);
   $("marketGrid").innerHTML = products
     .map(
-      (item) => `
+      (item) => {
+        const discount = discountText(item);
+        return `
         <article class="market-card" data-id="${escapeText(item.id)}">
           <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div class="market-card-body">
@@ -262,11 +274,18 @@ function renderMarketProducts(category = "all") {
               <strong>${money(item.price)}</strong>
             </div>
             <h3>${escapeText(item.name)}</h3>
-            <p>${escapeText(item.condition)} · ${escapeText(item.sellerName || "同学")} · ${escapeText(item.campus || "校内")}</p>
+            <p class="market-card-desc">${escapeText(item.description || `${item.condition}，支持校内当面验货。`)}</p>
+            <div class="product-proof">
+              <span>${escapeText(item.condition)}</span>
+              <span>信用 ${productTrust(item)}</span>
+              ${discount ? `<span>${escapeText(discount)}</span>` : ""}
+            </div>
+            <p class="seller-line">${escapeText(item.sellerName || "同学")} · ${escapeText(item.campus || "校内")} · ${Number(item.views || 0)} 次浏览</p>
             <div class="chip-row">${(item.tags || []).slice(0, 3).map((tag) => `<span>${escapeText(tag)}</span>`).join("")}</div>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 
@@ -485,7 +504,8 @@ function renderSearchResults(products, reason = "") {
           <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div>
             <h3>${escapeText(item.name)}</h3>
-            <p>${escapeText(item.category)} · ${escapeText(item.condition)} · ${escapeText((item.tags || []).join(" / "))}${reason ? ` · ${escapeText(reason)}` : ""}</p>
+            <p>${escapeText(item.category)} · ${escapeText(item.condition)} · 信用 ${productTrust(item)}${reason ? ` · ${escapeText(reason)}` : ""}</p>
+            <small>${escapeText(item.description || (item.tags || []).join(" / "))}</small>
           </div>
           <strong>${money(item.price)}</strong>
         </article>
