@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const sqlStore = require("./lib/sqlStore");
 
 const root = __dirname;
 const publicDir = path.join(root, "public");
@@ -58,6 +59,58 @@ function readDb() {
     writeDb(db);
   }
   return db;
+}
+
+async function getProducts() {
+  if (sqlStore.isSqlEnabled()) return sqlStore.listProducts();
+  return readDb().products;
+}
+
+async function getUsers() {
+  if (sqlStore.isSqlEnabled()) return sqlStore.listUsers();
+  return readDb().users;
+}
+
+async function createUser(body) {
+  if (sqlStore.isSqlEnabled()) return sqlStore.createUser(body);
+  const db = readDb();
+  const name = String(body.name || "").trim() || "匿名同学";
+  const campus = String(body.campus || "").trim() || "未填写校区";
+  const existing = db.users.find((user) => user.name === name && user.campus === campus);
+  if (existing) return existing;
+  const user = {
+    id: `u${Date.now()}`,
+    name,
+    campus,
+    trustScore: 82,
+    createdAt: new Date().toISOString()
+  };
+  db.users.unshift(user);
+  writeDb(db);
+  return user;
+}
+
+async function createProduct(body) {
+  if (sqlStore.isSqlEnabled()) return sqlStore.createProduct(body);
+  const db = readDb();
+  const product = {
+    id: `p${Date.now()}`,
+    name: String(body.name || body.title || "未命名商品").slice(0, 80),
+    category: body.category || "其他",
+    price: Number(body.price || 99),
+    condition: body.condition || "九成新",
+    tags: Array.isArray(body.tags) ? body.tags.slice(0, 6) : ["同校自提"],
+    score: 4.5,
+    views: 0,
+    image: body.image || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+    sellerId: body.sellerId || "u1",
+    sellerName: body.sellerName || "林同学",
+    campus: body.campus || "南校区",
+    createdAt: new Date().toISOString()
+  };
+  db.products.unshift(product);
+  writeDb(db);
+  return product;
 }
 
 async function readBody(req) {
@@ -196,52 +249,20 @@ const apiHandlers = {
     return (await callDeepSeek([{ role: "user", content: prompt }], schema)) || fallbackSearchIntent(body.query);
   },
   "/api/customer-service": async (body) => {
-    const db = readDb();
+    const products = await getProducts();
     const schema = '{"reply":string,"suggestions":string[]}';
     const prompt = [
       "你是校园二手交易平台的智能客服，回答要简短、具体、偏交易安全和商品选择。",
       `用户问题：${body.message || ""}`,
-      `当前在售商品：${JSON.stringify(db.products.slice(0, 8).map((p) => ({ name: p.name, category: p.category, price: p.price, tags: p.tags })))}`
+      `当前在售商品：${JSON.stringify(products.slice(0, 8).map((p) => ({ name: p.name, category: p.category, price: p.price, tags: p.tags })))}`
     ].join("\n");
-    return (await callDeepSeek([{ role: "user", content: prompt }], schema)) || fallbackCustomerService(body.message, db.products);
+    return (await callDeepSeek([{ role: "user", content: prompt }], schema)) || fallbackCustomerService(body.message, products);
   },
   "/api/users": async (body) => {
-    const db = readDb();
-    const name = String(body.name || "").trim() || "匿名同学";
-    const campus = String(body.campus || "").trim() || "未填写校区";
-    const existing = db.users.find((user) => user.name === name && user.campus === campus);
-    if (existing) return existing;
-    const user = {
-      id: `u${Date.now()}`,
-      name,
-      campus,
-      trustScore: 82,
-      createdAt: new Date().toISOString()
-    };
-    db.users.unshift(user);
-    writeDb(db);
-    return user;
+    return createUser(body);
   },
   "/api/products": async (body) => {
-    const db = readDb();
-    const product = {
-      id: `p${Date.now()}`,
-      name: String(body.name || body.title || "未命名商品").slice(0, 80),
-      category: body.category || "其他",
-      price: Number(body.price || 99),
-      condition: body.condition || "九成新",
-      tags: Array.isArray(body.tags) ? body.tags.slice(0, 6) : ["同校自提"],
-      score: 4.5,
-      views: 0,
-      image: body.image || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
-      sellerId: body.sellerId || "u1",
-      sellerName: body.sellerName || "林同学",
-      campus: body.campus || "南校区",
-      createdAt: new Date().toISOString()
-    };
-    db.products.unshift(product);
-    writeDb(db);
-    return product;
+    return createProduct(body);
   }
 };
 
@@ -272,10 +293,10 @@ http
     if (req.method === "OPTIONS") return send(res, 204, "");
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (req.method === "GET" && url.pathname === "/api/products") {
-      return send(res, 200, { ok: true, data: readDb().products });
+      return send(res, 200, { ok: true, data: await getProducts(), storage: sqlStore.isSqlEnabled() ? "sql-server" : "json" });
     }
     if (req.method === "GET" && url.pathname === "/api/users") {
-      return send(res, 200, { ok: true, data: readDb().users });
+      return send(res, 200, { ok: true, data: await getUsers(), storage: sqlStore.isSqlEnabled() ? "sql-server" : "json" });
     }
     if (req.method === "POST" && apiHandlers[url.pathname]) {
       const body = await readBody(req);
@@ -292,7 +313,7 @@ http
             : url.pathname === "/api/extract-attributes"
               ? fallbackAttributes(body.rawText)
               : url.pathname === "/api/customer-service"
-                ? fallbackCustomerService(body.message, readDb().products)
+                ? fallbackCustomerService(body.message, await getProducts())
                 : fallbackSearchIntent(body.query);
         return send(res, 200, {
           ok: true,

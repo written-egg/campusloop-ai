@@ -8,7 +8,7 @@
 - 基础 AI 估价：L1 品类参数库 + L2 近期成交价拟合。
 - 真伪识别：结合品类、型号、报价、序列号和描述生成可信度与验货建议。
 - 语义搜索：自然语言需求转搜索意图并匹配商品。
-- 数据库存储：后端使用 `data/db.json` 持久化用户和商品信息。
+- 数据库存储：本地默认使用 `data/db.json`；配置 `DB_USER` 和 `DB_PASSWORD` 后自动切换到 SQL Server。
 - 安全信任：敏感词、异常价格、新账号风险提示，API Key 不进入前端。
 
 ## 运行
@@ -22,6 +22,41 @@ node server.js
 ```text
 http://localhost:5173
 ```
+
+## SQL Server 本地接入
+
+先确认 `CampusLoopDB` 已执行 `database/schema.sql` 和 `database/seed.sql`。不要把数据库密码写进代码或提交到 GitHub。
+
+推荐创建专用开发账号，不要长期使用 `sa`：
+
+```powershell
+sqlcmd -S .\SQLEXPRESS -U sa -P $env:SQL_TEST_PASSWORD -C -v CampusLoopPassword="你自己设置的新密码" -i "database\create-dev-login.sql"
+```
+
+然后在本地 PowerShell 中临时配置网站数据库连接：
+
+```powershell
+$env:DB_SERVER=".\SQLEXPRESS"
+$env:DB_NAME="CampusLoopDB"
+$env:DB_USER="campusloop_dev"
+$env:DB_PASSWORD="你自己设置的新密码"
+$env:DB_ENCRYPT="false"
+$env:DB_TRUST_CERT="true"
+```
+
+检查 Node.js 是否能读取 SQL Server：
+
+```powershell
+npm run check:sql
+```
+
+启动网站：
+
+```powershell
+npm start
+```
+
+配置数据库环境变量后，`GET/POST /api/users` 和 `GET/POST /api/products` 会读写 SQL Server；未配置时继续使用 `data/db.json`，方便没有数据库环境的同学打开网站。
 
 ## DeepSeek 接入
 
@@ -49,6 +84,14 @@ node server.js
 数据库文件：
 
 - `data/db.json`
+
+SQL Server 后续开发文件：
+
+- `database/schema.sql`：SQL Server 建库建表脚本。
+- `database/seed.sql`：当前网站示例数据的初始化脚本。
+- `database/verify.sql`：数据库验收查询脚本。
+- `database/create-dev-login.sql`：创建 `campusloop_dev` 本地开发账号。
+- `database/README.md`：执行顺序、字段映射和第一天验收方式。
 
 普通用户页面不开放数据库管理模块；用户只通过发布、保存商品、浏览商品和搜索匹配间接使用数据库。
 
