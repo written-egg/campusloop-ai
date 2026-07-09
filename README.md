@@ -36,7 +36,8 @@ sqlcmd -S .\SQLEXPRESS -U sa -P $env:SQL_TEST_PASSWORD -C -v CampusLoopPassword=
 然后在本地 PowerShell 中临时配置网站数据库连接：
 
 ```powershell
-$env:DB_SERVER=".\SQLEXPRESS"
+$env:DB_SERVER="localhost"
+$env:DB_PORT="1433"
 $env:DB_NAME="CampusLoopDB"
 $env:DB_USER="campusloop_dev"
 $env:DB_PASSWORD="你自己设置的新密码"
@@ -57,6 +58,8 @@ npm start
 ```
 
 配置数据库环境变量后，`GET/POST /api/users` 和 `GET/POST /api/products` 会读写 SQL Server；未配置时继续使用 `data/db.json`，方便没有数据库环境的同学打开网站。
+
+如果 `npm run check:sql` 连接命名实例超时，需要在 SQL Server 配置管理器里启用 `SQLEXPRESS` 的 TCP/IP，并使用 `DB_SERVER=localhost`、`DB_PORT=1433` 连接。
 
 ## DeepSeek 接入
 

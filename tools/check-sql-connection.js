@@ -1,3 +1,5 @@
+require("dotenv").config({ quiet: true });
+
 const sqlStore = require("../lib/sqlStore");
 
 async function main() {
@@ -19,6 +21,7 @@ async function main() {
       2
     )
   );
+  process.exit(0);
 }
 
 main().catch((error) => {
