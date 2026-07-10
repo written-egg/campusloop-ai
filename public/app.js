@@ -5,6 +5,10 @@ const state = {
   users: [],
   risks: [],
   currentUser: null,
+  sessionToken: "",
+  selectedProductId: "",
+  marketError: "",
+  authMode: "login",
   recognition: null,
   listing: null,
   latestPrice: null,
@@ -15,6 +19,9 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 const LOCAL_PRODUCTS_KEY = "campusLoopLocalProducts";
+const SESSION_USER_KEY = "campusLoopCurrentUser";
+const SESSION_TOKEN_KEY = "campusLoopSessionToken";
+const SELECTED_PRODUCT_KEY = "campusLoopSelectedProduct";
 
 function showSuccessDialog(message) {
   const dialog = $("successDialog");
@@ -36,6 +43,7 @@ function showSuccessDialog(message) {
 
 const routes = {
   market: "page-market",
+  detail: "page-detail",
   estimate: "page-estimate",
   authenticity: "page-authenticity",
   publish: "page-publish",
@@ -53,25 +61,56 @@ async function fetchWithTimeout(url, options = {}, timeout = 9000) {
   }
 }
 
-async function getJson(url) {
-  const response = await fetchWithTimeout(url);
-  return response.json();
+class ApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
 }
 
-async function postJson(url, body) {
+async function requestJson(url, options = {}, timeout = 9000) {
   const response = await fetchWithTimeout(
+    url,
+    options,
+    timeout
+  );
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ApiError(response.status, "服务器返回了无法读取的内容。");
+  }
+  if (!response.ok || payload?.ok === false) {
+    throw new ApiError(response.status, payload?.error || `请求失败（HTTP ${response.status}）`);
+  }
+  return payload;
+}
+
+async function getJson(url) {
+  return requestJson(url);
+}
+
+async function postJson(url, body, headers = {}) {
+  return requestJson(
     url,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body)
     },
     12000
   );
-  return response.json();
 }
 
 function apiErrorMessage(error, fallback = "请求失败，请检查本地服务是否正在运行。") {
+  if (error?.name === "AbortError") return "网络连接超时，请稍后重试。";
+  if (error?.status === 400) return `输入内容不符合要求：${error.message || "请检查后重试。"}`;
+  if (error?.status === 401) return error.message || "账号密码错误或登录已失效。";
+  if (error?.status === 409) return "账号已经存在，请直接登录或更换账号。";
+  if (error?.status === 413) return "图片或请求内容过大，请压缩图片后重试。";
+  if (error?.status === 503) return "SQL Server 未配置或暂时不可用，请联系 A 检查数据库环境。";
+  if (error instanceof TypeError) return "网络连接失败，请确认本地服务正在运行。";
   if (!error) return fallback;
   if (typeof error === "string") return error;
   return error.message || fallback;
@@ -167,24 +206,74 @@ function showAllMarketTab() {
   });
 }
 
+function hasAuthenticatedSession() {
+  return Boolean(state.currentUser?.id && state.sessionToken);
+}
+
+function authHeaders() {
+  return hasAuthenticatedSession() ? { Authorization: `Bearer ${state.sessionToken}` } : {};
+}
+
+function persistSession(account) {
+  const { sessionToken, ...currentUser } = account || {};
+  if (!currentUser.id || !sessionToken) throw new Error("认证接口未返回完整的用户和会话令牌。");
+  state.currentUser = currentUser;
+  state.sessionToken = sessionToken;
+  sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(currentUser));
+  sessionStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+}
+
+function restoreSession() {
+  try {
+    const currentUser = JSON.parse(sessionStorage.getItem(SESSION_USER_KEY) || "null");
+    const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) || "";
+    if (!currentUser?.id || !sessionToken) throw new Error("Incomplete session");
+    state.currentUser = currentUser;
+    state.sessionToken = sessionToken;
+  } catch {
+    clearSession();
+  }
+}
+
+function clearSession() {
+  state.currentUser = null;
+  state.sessionToken = "";
+  sessionStorage.removeItem(SESSION_USER_KEY);
+  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
 function setRoute(routeName) {
-  const route = routes[routeName] ? routeName : "market";
+  let route = routes[routeName] ? routeName : "market";
+  if (route === "publish" && !hasAuthenticatedSession()) {
+    route = "login";
+    $("loginStatus").textContent = "请先登录，再发布商品。";
+  }
   state.activeRoute = route;
   document.querySelectorAll(".page").forEach((page) => page.classList.remove("active"));
   document.querySelectorAll(".nav-list a").forEach((link) => link.classList.toggle("active", link.dataset.route === route));
   $(routes[route]).classList.add("active");
+  if (route === "detail") renderProductDetail(state.selectedProductId || sessionStorage.getItem(SELECTED_PRODUCT_KEY));
+  return route;
+}
+
+function navigateTo(routeName, { replace = false } = {}) {
+  const route = setRoute(routeName);
+  const method = replace ? "replaceState" : "pushState";
+  history[method](null, "", `#${route}`);
+  window.scrollTo({ top: 0, behavior: "auto" });
 }
 
 function bindRouter() {
-  const apply = () => setRoute((location.hash || "#market").slice(1));
+  const apply = () => {
+    const requestedRoute = (location.hash || "#market").slice(1);
+    const actualRoute = setRoute(requestedRoute);
+    if (actualRoute !== requestedRoute) history.replaceState(null, "", `#${actualRoute}`);
+  };
   window.addEventListener("hashchange", apply);
   document.querySelectorAll("a[data-route]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      const route = link.dataset.route;
-      setRoute(route);
-      history.replaceState(null, "", `#${route}`);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      navigateTo(link.dataset.route);
     });
   });
   apply();
@@ -270,44 +359,250 @@ function buildRawListingInput() {
 }
 
 function renderCurrentUser() {
-  $("currentUserText").textContent = state.currentUser
+  const loggedIn = hasAuthenticatedSession();
+  $("currentUserText").textContent = loggedIn
     ? `${state.currentUser.name} · ${state.currentUser.campus} · 信用 ${state.currentUser.trustScore}`
     : "未登录";
+  $("accountAction").textContent = loggedIn ? state.currentUser.name || "个人中心" : "登录";
+  $("logoutBtn").hidden = !loggedIn;
+  if (loggedIn) $("saveStatus").textContent = `当前卖家：${state.currentUser.name}`;
+}
+
+function switchAuthMode(mode) {
+  const nextMode = mode === "register" ? "register" : "login";
+  state.authMode = nextMode;
+  $("loginForm").hidden = nextMode !== "login";
+  $("registerForm").hidden = nextMode !== "register";
+  $("loginTab").classList.toggle("active", nextMode === "login");
+  $("registerTab").classList.toggle("active", nextMode === "register");
+  $("loginTab").setAttribute("aria-selected", String(nextMode === "login"));
+  $("registerTab").setAttribute("aria-selected", String(nextMode === "register"));
+  $("loginStatus").textContent = "";
+}
+
+function validateLoginName(value) {
+  const loginName = String(value || "").trim();
+  if (!/^[A-Za-z0-9_]{4,30}$/.test(loginName)) {
+    throw new Error("登录账号必须为 4 至 30 位字母、数字或下划线。");
+  }
+  return loginName;
+}
+
+function validatePassword(value) {
+  const password = String(value || "");
+  if (password.length < 6) throw new Error("密码至少需要 6 个字符。");
+  return password;
+}
+
+function setAuthSubmitting(mode, submitting) {
+  const button = mode === "register" ? $("registerSubmitBtn") : $("loginSubmitBtn");
+  button.disabled = submitting;
+  button.textContent = submitting ? (mode === "register" ? "正在注册..." : "正在登录...") : mode === "register" ? "注册" : "登录";
+}
+
+function clearPasswordFields() {
+  ["loginPasswordInput", "registerPasswordInput", "registerConfirmInput"].forEach((id) => {
+    $(id).value = "";
+    $(id).type = "password";
+  });
+  document.querySelectorAll(".password-toggle").forEach((button) => {
+    button.textContent = "显示";
+    button.setAttribute("aria-label", button.getAttribute("aria-label").replace("隐藏", "显示"));
+  });
 }
 
 async function loginUser(event) {
-  event?.preventDefault();
-  $("loginStatus").textContent = "正在连接用户接口...";
+  event.preventDefault();
+  let loginName = "";
+  let password = "";
   try {
-    const response = await postJson("/api/users", {
-      name: $("loginNameInput").value,
-      campus: $("loginCampusInput").value
-    });
-    if (!response.ok || !response.data?.id) throw new Error(response.error || "用户接口未返回有效用户");
-    state.currentUser = response.data;
-    localStorage.setItem("campusLoopUserId", state.currentUser.id);
-    if (!state.users.some((user) => user.id === state.currentUser.id)) state.users.unshift(state.currentUser);
-    renderCurrentUser();
-    $("loginStatus").textContent = "已登录";
-    $("saveStatus").textContent = "已登录";
-    await showSuccessDialog("登录成功");
-    location.hash = "publish";
+    loginName = validateLoginName($("loginNameInput").value);
+    password = validatePassword($("loginPasswordInput").value);
   } catch (error) {
-    state.currentUser = null;
-    renderCurrentUser();
-    $("loginStatus").textContent = `登录失败：${apiErrorMessage(error)}`;
-    $("saveStatus").textContent = "请先完成登录接口联调，再发布商品。";
+    $("loginStatus").textContent = error.message;
+    return;
   }
+
+  setAuthSubmitting("login", true);
+  $("loginStatus").textContent = "正在登录...";
+  try {
+    const response = await postJson("/api/auth/login", {
+      loginName,
+      password
+    });
+    persistSession(response.data);
+    renderCurrentUser();
+    $("loginStatus").textContent = `登录成功：${state.currentUser.name}`;
+    clearPasswordFields();
+    setAuthSubmitting("login", false);
+    await showSuccessDialog("登录成功");
+    navigateTo("publish");
+  } catch (error) {
+    $("loginStatus").textContent = `登录失败：${apiErrorMessage(error)}`;
+  } finally {
+    password = "";
+    setAuthSubmitting("login", false);
+  }
+}
+
+async function registerUser(event) {
+  event.preventDefault();
+  let loginName = "";
+  let password = "";
+  const name = $("registerNameInput").value.trim();
+  const campus = $("registerCampusInput").value.trim();
+  try {
+    loginName = validateLoginName($("registerLoginNameInput").value);
+    password = validatePassword($("registerPasswordInput").value);
+    if (!name) throw new Error("昵称不能为空。");
+    if (!campus) throw new Error("校区不能为空。");
+    if (password !== $("registerConfirmInput").value) throw new Error("两次输入的密码不一致。");
+  } catch (error) {
+    $("loginStatus").textContent = error.message;
+    return;
+  }
+
+  setAuthSubmitting("register", true);
+  $("loginStatus").textContent = "正在注册...";
+  try {
+    const response = await postJson("/api/auth/register", { loginName, password, name, campus });
+    persistSession(response.data);
+    renderCurrentUser();
+    $("loginStatus").textContent = `注册成功：${state.currentUser.name}`;
+    clearPasswordFields();
+    setAuthSubmitting("register", false);
+    await showSuccessDialog("注册成功");
+    navigateTo("publish");
+  } catch (error) {
+    $("loginStatus").textContent = `注册失败：${apiErrorMessage(error)}`;
+  } finally {
+    password = "";
+    setAuthSubmitting("register", false);
+  }
+}
+
+async function logoutUser() {
+  const button = $("logoutBtn");
+  button.disabled = true;
+  button.textContent = "正在退出...";
+  $("loginStatus").textContent = "正在退出...";
+  let logoutMessage = "已退出登录。";
+  try {
+    await postJson("/api/auth/logout", {}, authHeaders());
+  } catch (error) {
+    logoutMessage = `退出接口未完成，但本地登录状态已清除：${apiErrorMessage(error)}`;
+  } finally {
+    clearSession();
+    clearPasswordFields();
+    renderCurrentUser();
+    $("loginStatus").textContent = logoutMessage;
+    $("saveStatus").textContent = "请先登录，再发布商品。";
+    button.disabled = false;
+    button.textContent = "退出登录";
+    navigateTo("market");
+  }
+}
+
+function setMarketStatus(message = "", tone = "") {
+  const status = $("marketStatus");
+  status.textContent = message;
+  status.className = `page-state${tone ? ` ${tone}` : ""}`;
+  status.hidden = !message;
+}
+
+function openProductDetail(id) {
+  state.selectedProductId = String(id || "");
+  if (state.selectedProductId) sessionStorage.setItem(SELECTED_PRODUCT_KEY, state.selectedProductId);
+  renderProductDetail(state.selectedProductId);
+  navigateTo("detail");
+}
+
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间待补充";
+  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+function renderProductDetail(id) {
+  const status = $("detailStatus");
+  const content = $("detailContent");
+  const product = state.products.find((item) => String(item.id) === String(id || ""));
+  if (!product) {
+    content.hidden = true;
+    content.innerHTML = "";
+    status.hidden = false;
+    status.className = "page-state error";
+    status.textContent = id ? "商品不存在或已经下架，请返回首页重新选择。" : "尚未选择商品，请返回首页浏览商品。";
+    return;
+  }
+
+  const discount = discountText(product);
+  const originalPrice = Number(product.originalPrice);
+  const tags = Array.isArray(product.tags) ? product.tags : [];
+  status.hidden = true;
+  content.hidden = false;
+  content.innerHTML = `
+    <div class="detail-media">
+      <img id="detailImage" src="${escapeText(product.image || imageFallbackFor(product.category))}" alt="${escapeText(product.name)}" data-fallback="${escapeText(imageFallbackFor(product.category))}">
+    </div>
+    <div class="detail-panel">
+      <div class="detail-heading">
+        <p class="kicker">${escapeText(product.category || "校园好物")}</p>
+        <h2>${escapeText(product.name)}</h2>
+        <div class="detail-price-row">
+          <strong>${money(product.price)}</strong>
+          ${Number.isFinite(originalPrice) && originalPrice > Number(product.price) ? `<del>${money(originalPrice)}</del>` : ""}
+          ${discount ? `<span>${escapeText(discount)}</span>` : ""}
+        </div>
+      </div>
+      <div class="detail-facts">
+        <div><span>成色</span><strong>${escapeText(product.condition || "待补充")}</strong></div>
+        <div><span>信用分</span><strong>${productTrust(product)}</strong></div>
+        <div><span>浏览量</span><strong>${Number(product.views || 0)} 次</strong></div>
+        <div><span>发布时间</span><strong>${escapeText(formatDate(product.createdAt))}</strong></div>
+      </div>
+      <section class="detail-description">
+        <h3>商品描述</h3>
+        <p>${escapeText(product.description || `${product.condition || "该商品"}，卖家暂未补充更多描述，建议当面验货确认。`)}</p>
+      </section>
+      <div class="chip-row detail-tags">${tags.length ? tags.map((tag) => `<span>${escapeText(tag)}</span>`).join("") : "<span>暂无标签</span>"}</div>
+      <section class="seller-card">
+        <div>
+          <span>卖家</span>
+          <strong>${escapeText(product.sellerName || "校园同学")}</strong>
+        </div>
+        <div>
+          <span>校区</span>
+          <strong>${escapeText(product.campus || "校内")}</strong>
+        </div>
+      </section>
+      <div class="detail-actions" aria-label="后续交易功能占位">
+        <button type="button" disabled title="收藏功能后续开发">收藏</button>
+        <button type="button" disabled title="消息功能后续开发">联系卖家</button>
+        <button type="button" disabled title="交易功能后续开发">立即预订</button>
+      </div>
+    </div>
+  `;
+  const image = $("detailImage");
+  image.addEventListener("error", () => {
+    if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+  });
 }
 
 function renderMarketProducts(category = "all") {
   const products = category === "all" ? state.products : state.products.filter((item) => item.category === category);
+  if (!products.length) {
+    $("marketGrid").innerHTML = "";
+    setMarketStatus(state.marketError || (category === "all" ? "暂时没有商品，稍后再来看看。" : "该分类暂时没有商品。"), state.marketError ? "error" : "empty");
+    return;
+  }
+  setMarketStatus(state.marketError, state.marketError ? "warning" : "");
   $("marketGrid").innerHTML = products
     .map(
       (item) => {
         const discount = discountText(item);
         return `
-        <article class="market-card" data-id="${escapeText(item.id)}">
+        <article class="market-card" data-id="${escapeText(item.id)}" role="link" tabindex="0" aria-label="查看 ${escapeText(item.name)} 的详情">
           <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div class="market-card-body">
             <div class="market-card-meta">
@@ -337,16 +632,26 @@ function renderMarketProducts(category = "all") {
   });
 
   document.querySelectorAll(".market-card").forEach((card) => {
-    card.addEventListener("click", () => {
-      selectProduct(card.dataset.id);
-      location.hash = "publish";
+    card.addEventListener("click", () => openProductDetail(card.dataset.id));
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openProductDetail(card.dataset.id);
+      }
     });
   });
 }
 
 async function refreshProducts() {
-  const response = await getJson("/api/products");
-  state.products = mergeProducts(response.data || []);
+  setMarketStatus("正在加载商品...", "loading");
+  try {
+    const response = await getJson("/api/products");
+    state.marketError = "";
+    state.products = mergeProducts(response.data || []);
+  } catch (error) {
+    state.marketError = apiErrorMessage(error, "商品加载失败，请稍后重试。");
+    state.products = mergeProducts([]);
+  }
   renderMarketProducts(document.querySelector(".tab-button.active")?.dataset.filter || "all");
   renderSearchResults(state.products.slice(0, 4));
 }
@@ -457,9 +762,9 @@ async function generateListing() {
 }
 
 async function saveCurrentProduct() {
-  if (!state.currentUser) {
+  if (!hasAuthenticatedSession()) {
     $("saveStatus").textContent = "请先登录，再发布商品。";
-    location.hash = "login";
+    navigateTo("login");
     return;
   }
   if (!state.recognition || !state.listing) await generateListing();
@@ -474,55 +779,49 @@ async function saveCurrentProduct() {
       category: state.recognition.category,
       price: Number($("sellerPriceInput").value) || state.latestPrice?.suggested || 99,
       condition: state.recognition.condition,
+      description: state.listing.description,
       tags: [...(state.listing.sellingPoints || []), state.recognition.brand, state.recognition.model].filter(Boolean),
       image: productImage,
       sellerId: state.currentUser.id,
       sellerName: state.currentUser.name,
       campus: state.currentUser.campus
     };
-    let product = null;
-    let saveMessage = "";
-    let persistedRemotely = false;
+    const productResponse = await postJson("/api/products", payload, authHeaders());
+    if (!productResponse.data?.id || !productResponse.data?.name) throw new Error("发布接口未返回有效商品。");
+    const product = productResponse.data;
+    let saveMessage = `发布成功：${product.name}`;
+
     try {
-      const productResponse = await postJson("/api/products", payload);
-      if (!productResponse.ok || !productResponse.data?.name) throw new Error(productResponse.error || "发布接口未返回商品");
-      product = productResponse.data;
-      persistedRemotely = true;
-      try {
-        const productsResponse = await getJson("/api/products");
-        const remoteProducts = productsResponse.data || [];
-        const persisted = remoteProducts.some((item) => item.id === product.id);
-        if (persisted) {
-          state.products = mergeProducts(remoteProducts);
-          saveMessage = `发布成功：${product.name}（已写入 ${storageLabel(productsResponse.storage)}，刷新后仍可见）`;
-        } else {
-          state.products = mergeProducts([product, ...remoteProducts]);
-          saveMessage = `发布成功：${product.name}（接口已返回成功，但复查列表暂未命中，请刷新后再次确认）`;
-        }
-      } catch (verifyError) {
-        state.products = mergeProducts([product, ...state.products]);
-        saveMessage = `发布成功：${product.name}（后端已返回成功；复查列表失败：${apiErrorMessage(verifyError)}）`;
-      }
-    } catch (error) {
-      product = {
-        id: `local-${Date.now()}`,
-        ...payload,
-        score: 4.5,
-        views: 0,
-        createdAt: new Date().toISOString(),
-        localOnly: true
-      };
-      rememberLocalProduct(product);
-      state.products = [product, ...state.products.filter((item) => item.id !== product.id)];
-      saveMessage = `接口保存失败，已临时保存在本机：${product.name}。刷新本机仍可见，换设备不可见。原因：${apiErrorMessage(error)}`;
+      const productsResponse = await getJson("/api/products");
+      const remoteProducts = productsResponse.data || [];
+      const persisted = remoteProducts.some((item) => item.id === product.id);
+      state.products = mergeProducts(persisted ? remoteProducts : [product, ...remoteProducts]);
+      saveMessage = persisted
+        ? `发布成功：${product.name}（已写入 ${storageLabel(productsResponse.storage)}，刷新后仍可见）`
+        : `发布成功：${product.name}（接口已返回成功，列表同步稍有延迟）`;
+    } catch (verifyError) {
+      state.products = mergeProducts([product, ...state.products]);
+      saveMessage = `发布成功：${product.name}（复查列表失败：${apiErrorMessage(verifyError)}）`;
     }
 
     showAllMarketTab();
     renderMarketProducts("all");
     renderSearchResults(state.products.slice(0, 4));
     $("saveStatus").textContent = saveMessage;
-    if (persistedRemotely) await showSuccessDialog("发布成功");
-    location.hash = "market";
+    $("publishProductBtn").disabled = false;
+    $("publishProductBtn").textContent = "发布商品";
+    await showSuccessDialog("发布成功");
+    navigateTo("market");
+  } catch (error) {
+    if (error?.status === 401) {
+      clearSession();
+      renderCurrentUser();
+      $("loginStatus").textContent = "登录已失效，请重新登录。";
+      $("saveStatus").textContent = "登录已失效，请重新登录。";
+      navigateTo("login");
+    } else {
+      $("saveStatus").textContent = `发布失败：${apiErrorMessage(error)}`;
+    }
   } finally {
     $("publishProductBtn").disabled = false;
     $("publishProductBtn").textContent = "发布商品";
@@ -561,10 +860,14 @@ function localSearchIntent(query) {
 }
 
 function renderSearchResults(products, reason = "") {
+  if (!products.length) {
+    $("searchResults").innerHTML = '<div class="page-state empty">没有找到符合条件的商品。</div>';
+    return;
+  }
   $("searchResults").innerHTML = products
     .map(
       (item) => `
-        <article class="result-card" data-id="${escapeText(item.id)}">
+        <article class="result-card" data-id="${escapeText(item.id)}" role="link" tabindex="0" aria-label="查看 ${escapeText(item.name)} 的详情">
           <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div>
             <h3>${escapeText(item.name)}</h3>
@@ -580,6 +883,15 @@ function renderSearchResults(products, reason = "") {
   document.querySelectorAll(".result-card img").forEach((image) => {
     image.addEventListener("error", () => {
       if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
+  document.querySelectorAll(".result-card").forEach((card) => {
+    card.addEventListener("click", () => openProductDetail(card.dataset.id));
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openProductDetail(card.dataset.id);
+      }
     });
   });
 }
@@ -767,6 +1079,23 @@ function bindUpload(inputId, imageId) {
 function setupEvents() {
   bindRouter();
   $("loginForm").addEventListener("submit", loginUser);
+  $("registerForm").addEventListener("submit", registerUser);
+  $("loginTab").addEventListener("click", () => switchAuthMode("login"));
+  $("registerTab").addEventListener("click", () => switchAuthMode("register"));
+  document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.addEventListener("click", () => switchAuthMode(button.dataset.authMode));
+  });
+  document.querySelectorAll(".password-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = $(button.dataset.passwordTarget);
+      const showPassword = input.type === "password";
+      input.type = showPassword ? "text" : "password";
+      button.textContent = showPassword ? "隐藏" : "显示";
+      button.setAttribute("aria-label", `${showPassword ? "隐藏" : "显示"}密码`);
+    });
+  });
+  $("logoutBtn").addEventListener("click", logoutUser);
+  $("detailBackBtn").addEventListener("click", () => navigateTo("market"));
   $("estimateForm").addEventListener("submit", (event) => {
     event.preventDefault();
     renderEstimate();
@@ -820,31 +1149,24 @@ function setupEvents() {
 }
 
 async function init() {
-  const [categories, transactions, productsResponse, usersResponse, risks] = await Promise.all([
+  setMarketStatus("正在加载商品...", "loading");
+  const [categories, transactions, risks] = await Promise.all([
     getJson("/data/category-knowledge.json"),
     getJson("/data/market-transactions.json"),
-    getJson("/api/products"),
-    getJson("/api/users"),
     getJson("/data/risk-rules.json")
   ]);
   state.categories = categories;
   state.transactions = transactions;
-  state.products = mergeProducts(productsResponse.data || []);
-  state.users = usersResponse.data || [];
   state.risks = risks;
 
   populateCategorySelects();
-  const savedUserId = localStorage.getItem("campusLoopUserId");
-  state.currentUser = state.users.find((user) => user.id === savedUserId) || null;
-  if (state.currentUser) {
-    $("loginNameInput").value = state.currentUser.name;
-    $("loginCampusInput").value = state.currentUser.campus;
-  }
-
+  localStorage.removeItem("campusLoopUserId");
+  restoreSession();
+  state.selectedProductId = sessionStorage.getItem(SELECTED_PRODUCT_KEY) || "";
   renderCurrentUser();
+  switchAuthMode("login");
+  await refreshProducts();
   setupEvents();
-  renderMarketProducts();
-  renderSearchResults(state.products.slice(0, 4));
   renderEstimate();
   runAuthenticityCheck();
   state.recognition = recognizeFromForm();
@@ -856,4 +1178,6 @@ async function init() {
 
 init().catch((error) => {
   console.error(error);
+  setMarketStatus(`页面初始化失败：${apiErrorMessage(error)}`, "error");
+  $("loginStatus").textContent = `页面初始化失败：${apiErrorMessage(error)}`;
 });
