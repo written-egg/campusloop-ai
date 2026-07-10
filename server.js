@@ -351,6 +351,23 @@ http
     if (req.method === "GET" && url.pathname === "/api/users") {
       return send(res, 200, { ok: true, data: await getUsers(), storage: sqlStore.isSqlEnabled() ? "sql-server" : "json" });
     }
+    if (req.method === "GET" && url.pathname === "/api/auth/session") {
+      try {
+        const session = readSession(req);
+        if (!session?.userId) return send(res, 401, { ok: false, data: null, error: "登录已失效，请重新登录。" });
+        if (!sqlStore.isSqlEnabled()) {
+          return send(res, 503, { ok: false, data: null, error: "登录功能需要配置 SQL Server。" });
+        }
+        const user = await sqlStore.getUserByExternalId(session.userId);
+        if (!user) {
+          sessions.delete(session.token);
+          return send(res, 401, { ok: false, data: null, error: "登录用户不存在，请重新登录。" });
+        }
+        return send(res, 200, { ok: true, data: user, error: null });
+      } catch (error) {
+        return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Session check failed" });
+      }
+    }
     if (req.method === "POST" && apiHandlers[url.pathname]) {
       let body = {};
       try {

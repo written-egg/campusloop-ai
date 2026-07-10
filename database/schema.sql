@@ -176,6 +176,7 @@ SELECT
     p.ProductId,
     p.ExternalId,
     p.ProductName,
+    p.Description,
     c.CategoryName,
     p.Price,
     p.OriginalPrice,

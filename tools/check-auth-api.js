@@ -17,6 +17,13 @@ async function post(path, body, sessionToken = "") {
   return { status: response.status, body: await response.json() };
 }
 
+async function get(path, sessionToken = "") {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 async function main() {
   const pool = await sqlStore.getPool();
   const suffix = Date.now().toString().slice(-10);
@@ -44,6 +51,7 @@ async function main() {
     });
     const wrongPassword = await post("/api/auth/login", { loginName, password: "Wrong123!" });
     const loggedIn = await post("/api/auth/login", { loginName, password });
+    const activeSession = await get("/api/auth/session", sessionToken);
     const unauthenticatedProduct = await post("/api/products", {
       name: "不应由未登录账号发布的商品",
       category: "其他",
@@ -54,6 +62,7 @@ async function main() {
     });
     const validProduct = await post("/api/products", {
       name: "A事务测试商品",
+      description: "自动化测试商品描述",
       category: "其他",
       price: 10,
       condition: "九成新",
@@ -78,11 +87,11 @@ async function main() {
       .request()
       .input("externalId", sql.NVarChar(40), productExternalId)
       .query(`
-        SELECT p.ExternalId, COUNT(i.ImageId) AS ImageCount
+        SELECT p.ExternalId, p.Description, COUNT(i.ImageId) AS ImageCount
         FROM dbo.Products AS p
         LEFT JOIN dbo.ProductImages AS i ON i.ProductId = p.ProductId
         WHERE p.ExternalId = @externalId
-        GROUP BY p.ExternalId;
+        GROUP BY p.ExternalId, p.Description;
       `);
     const after = await pool.request().query("SELECT COUNT(*) AS ProductCount FROM dbo.Products;");
     const passwordHash = stored.recordset[0]?.PasswordHash || "";
@@ -93,15 +102,21 @@ async function main() {
       duplicateRejected: duplicate.status === 409 && duplicate.body.ok === false,
       wrongPasswordRejected: wrongPassword.status === 401 && wrongPassword.body.ok === false,
       login: loggedIn.status === 200 && loggedIn.body.data?.id === externalId,
+      activeSessionRestored: activeSession.status === 200 && activeSession.body.data?.id === externalId,
       passwordHashed: passwordHash.startsWith("$2") && passwordHash !== password,
       registeredSellerRequiresSession: unauthenticatedProduct.status === 401 && unauthenticatedProduct.body.ok === false,
       productAndImageCommitted:
         validProduct.status === 200 && productStored.recordset[0]?.ExternalId === productExternalId && productStored.recordset[0]?.ImageCount === 1,
+      productDescriptionReturned:
+        validProduct.body.data?.description === "自动化测试商品描述" &&
+        productStored.recordset[0]?.Description === "自动化测试商品描述",
       invalidSellerRejected: invalidSeller.status === 400 && invalidSeller.body.ok === false,
       invalidProductRolledBack: before.recordset[0].ProductCount + 1 === after.recordset[0].ProductCount
     };
     const loggedOut = await post("/api/auth/logout", {}, sessionToken);
     checks.logout = loggedOut.status === 200 && loggedOut.body.data?.loggedOut === true;
+    const expiredSession = await get("/api/auth/session", sessionToken);
+    checks.loggedOutSessionRejected = expiredSession.status === 401 && expiredSession.body.ok === false;
     const ok = Object.values(checks).every(Boolean);
     console.log(
       JSON.stringify(

@@ -87,8 +87,8 @@ async function requestJson(url, options = {}, timeout = 9000) {
   return payload;
 }
 
-async function getJson(url) {
-  return requestJson(url);
+async function getJson(url, headers = {}) {
+  return requestJson(url, { headers });
 }
 
 async function postJson(url, body, headers = {}) {
@@ -223,15 +223,21 @@ function persistSession(account) {
   sessionStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
 }
 
-function restoreSession() {
+async function restoreSession() {
   try {
     const currentUser = JSON.parse(sessionStorage.getItem(SESSION_USER_KEY) || "null");
     const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) || "";
     if (!currentUser?.id || !sessionToken) throw new Error("Incomplete session");
     state.currentUser = currentUser;
     state.sessionToken = sessionToken;
+    const response = await getJson("/api/auth/session", authHeaders());
+    if (!response.data?.id) throw new Error("Invalid session user");
+    state.currentUser = response.data;
+    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(response.data));
+    return true;
   } catch {
     clearSession();
+    return false;
   }
 }
 
@@ -1161,7 +1167,7 @@ async function init() {
 
   populateCategorySelects();
   localStorage.removeItem("campusLoopUserId");
-  restoreSession();
+  await restoreSession();
   state.selectedProductId = sessionStorage.getItem(SELECTED_PRODUCT_KEY) || "";
   renderCurrentUser();
   switchAuthMode("login");

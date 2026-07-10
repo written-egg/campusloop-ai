@@ -9,7 +9,8 @@
     "check:auth-db": "node tools/check-auth-database.js",
     "check:auth-api": "node tools/check-auth-api.js",
     "check:advanced-db": "node tools/check-advanced-database.js",
-    "migrate:auth": "node tools/run-sql-file.js database/migrations/002_auth_and_advanced_objects.sql"
+    "migrate:auth": "node tools/run-sql-file.js database/migrations/002_auth_and_advanced_objects.sql",
+    "migrate:product-description": "node tools/run-sql-file.js database/migrations/003_product_description_view.sql"
   },
   "engines": {
     "node": ">=18"
