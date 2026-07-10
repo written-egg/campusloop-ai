@@ -1023,6 +1023,31 @@ label {
   color: var(--muted);
 }
 
+.success-dialog {
+  width: min(340px, calc(100vw - 40px));
+  padding: 30px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop-lg);
+  text-align: center;
+}
+
+.success-dialog::backdrop {
+  background: rgba(20, 24, 15, 0.48);
+}
+
+.success-dialog p {
+  margin: 0 0 22px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.success-dialog button {
+  min-width: 112px;
+}
+
 @keyframes page-in {
   from {
     opacity: 0;

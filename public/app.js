@@ -16,6 +16,24 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const LOCAL_PRODUCTS_KEY = "campusLoopLocalProducts";
 
+function showSuccessDialog(message) {
+  const dialog = $("successDialog");
+  const confirmButton = $("successDialogConfirm");
+  $("successDialogMessage").textContent = message;
+
+  return new Promise((resolve) => {
+    const preventCancel = (event) => event.preventDefault();
+    const confirm = () => {
+      dialog.removeEventListener("cancel", preventCancel);
+      dialog.close();
+      resolve();
+    };
+    dialog.addEventListener("cancel", preventCancel);
+    confirmButton.addEventListener("click", confirm, { once: true });
+    dialog.showModal();
+  });
+}
+
 const routes = {
   market: "page-market",
   estimate: "page-estimate",
@@ -136,7 +154,8 @@ function rememberLocalProduct(product) {
 
 function mergeProducts(remoteProducts = []) {
   const merged = new Map();
-  [...loadLocalProducts(), ...remoteProducts].forEach((product) => {
+  const products = remoteProducts.length ? remoteProducts : loadLocalProducts();
+  products.forEach((product) => {
     if (product?.id && !merged.has(product.id)) merged.set(product.id, product);
   });
   return [...merged.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -269,8 +288,9 @@ async function loginUser(event) {
     localStorage.setItem("campusLoopUserId", state.currentUser.id);
     if (!state.users.some((user) => user.id === state.currentUser.id)) state.users.unshift(state.currentUser);
     renderCurrentUser();
-    $("loginStatus").textContent = `已登录：${state.currentUser.name}，用户已由后端接口创建或复用。`;
-    $("saveStatus").textContent = `已登录：${state.currentUser.name}`;
+    $("loginStatus").textContent = "已登录";
+    $("saveStatus").textContent = "已登录";
+    await showSuccessDialog("登录成功");
     location.hash = "publish";
   } catch (error) {
     state.currentUser = null;
@@ -447,7 +467,8 @@ async function saveCurrentProduct() {
   $("publishProductBtn").disabled = true;
   $("publishProductBtn").textContent = "发布中";
   try {
-    const productImage = await getUploadImageSrc("previewImage");
+    $("saveStatus").textContent = "正在处理图片...";
+    const productImage = await getUploadImageSrc("previewImage", state.recognition.category);
     const payload = {
       name: $("productNameInput").value.trim() || state.listing.title,
       category: state.recognition.category,
@@ -461,10 +482,12 @@ async function saveCurrentProduct() {
     };
     let product = null;
     let saveMessage = "";
+    let persistedRemotely = false;
     try {
       const productResponse = await postJson("/api/products", payload);
       if (!productResponse.ok || !productResponse.data?.name) throw new Error(productResponse.error || "发布接口未返回商品");
       product = productResponse.data;
+      persistedRemotely = true;
       try {
         const productsResponse = await getJson("/api/products");
         const remoteProducts = productsResponse.data || [];
@@ -490,7 +513,7 @@ async function saveCurrentProduct() {
         localOnly: true
       };
       rememberLocalProduct(product);
-      state.products = mergeProducts([product, ...state.products]);
+      state.products = [product, ...state.products.filter((item) => item.id !== product.id)];
       saveMessage = `接口保存失败，已临时保存在本机：${product.name}。刷新本机仍可见，换设备不可见。原因：${apiErrorMessage(error)}`;
     }
 
@@ -498,6 +521,7 @@ async function saveCurrentProduct() {
     renderMarketProducts("all");
     renderSearchResults(state.products.slice(0, 4));
     $("saveStatus").textContent = saveMessage;
+    if (persistedRemotely) await showSuccessDialog("发布成功");
     location.hash = "market";
   } finally {
     $("publishProductBtn").disabled = false;
@@ -508,7 +532,9 @@ async function saveCurrentProduct() {
 function selectProduct(id) {
   const product = state.products.find((item) => item.id === id);
   if (!product) return;
-  $("previewImage").src = product.image;
+  $("previewImage").src = product.image || imageFallbackFor(product.category);
+  $("previewImage").dataset.uploadDataUrl = "";
+  delete state.uploads.previewImage;
   $("productNameInput").value = product.name;
   $("categorySelect").value = product.category;
   $("brandModelInput").value = product.tags?.find((tag) => /^[A-Za-z]/.test(tag)) || product.name;
@@ -681,15 +707,23 @@ function fileToDataUrl(file) {
   });
 }
 
-async function getUploadImageSrc(imageId) {
+function isPersistableImageSrc(src) {
+  return Boolean(src && !String(src).startsWith("blob:") && String(src).trim());
+}
+
+async function getUploadImageSrc(imageId, fallbackCategory) {
   if (state.uploads[imageId]) {
     try {
-      return await state.uploads[imageId];
+      const uploaded = await state.uploads[imageId];
+      if (isPersistableImageSrc(uploaded)) return uploaded;
     } catch {
       // Fall back to the current preview if the browser cannot decode the file.
     }
   }
-  return $(imageId).dataset.uploadDataUrl || $(imageId).src;
+  const image = $(imageId);
+  if (isPersistableImageSrc(image.dataset.uploadDataUrl)) return image.dataset.uploadDataUrl;
+  if (isPersistableImageSrc(image.src)) return image.src;
+  return imageFallbackFor(fallbackCategory);
 }
 
 function bindUpload(inputId, imageId) {
