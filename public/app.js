@@ -865,19 +865,15 @@ function localSearchIntent(query) {
   };
 }
 
-function renderSearchResults(products, reason = "") {
-  if (!products.length) {
-    $("searchResults").innerHTML = '<div class="page-state empty">没有找到符合条件的商品。</div>';
-    return;
-  }
-  $("searchResults").innerHTML = products
+function searchCardsMarkup(products, reason = "") {
+  return products
     .map(
       (item) => `
         <article class="result-card" data-id="${escapeText(item.id)}" role="link" tabindex="0" aria-label="查看 ${escapeText(item.name)} 的详情">
           <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
           <div>
             <h3>${escapeText(item.name)}</h3>
-            <p>${escapeText(item.category)} · ${escapeText(item.condition)} · 信用 ${productTrust(item)}${reason ? ` · ${escapeText(reason)}` : ""}</p>
+            <p>${escapeText(item.category)} · ${escapeText(item.condition)} · 信用 ${productTrust(item)}${item.matchReason || reason ? ` · ${escapeText(item.matchReason || reason)}` : ""}</p>
             <small>${escapeText(item.description || (item.tags || []).join(" / "))}</small>
           </div>
           <strong>${money(item.price)}</strong>
@@ -885,6 +881,9 @@ function renderSearchResults(products, reason = "") {
       `
     )
     .join("");
+}
+
+function bindSearchResultEvents() {
 
   document.querySelectorAll(".result-card img").forEach((image) => {
     image.addEventListener("error", () => {
@@ -902,8 +901,48 @@ function renderSearchResults(products, reason = "") {
   });
 }
 
+function renderSearchResults(products, reason = "") {
+  $("searchResults").innerHTML = products.length
+    ? searchCardsMarkup(products, reason)
+    : '<div class="page-state empty">没有找到符合条件的商品。</div>';
+  bindSearchResultEvents();
+}
+
+function renderSearchMatches(query, matching) {
+  const label = matching.terms.join("、") || query;
+  const sections = [];
+  if (matching.exactMatches.length) {
+    sections.push(`
+      <section class="search-group">
+        <div class="search-group-head"><h3>精准结果</h3><span>${matching.exactMatches.length} 件</span></div>
+        ${searchCardsMarkup(matching.exactMatches)}
+      </section>
+    `);
+  } else {
+    sections.push(`<div class="page-state empty">没有找到“${escapeText(label)}”的直接匹配商品。</div>`);
+  }
+  if (matching.similarRecommendations.length) {
+    sections.push(`
+      <section class="search-group related">
+        <div class="search-group-head"><h3>相似推荐</h3><span>仅供参考，不是直接匹配</span></div>
+        ${searchCardsMarkup(matching.similarRecommendations)}
+      </section>
+    `);
+  }
+  if (!matching.exactMatches.length && !matching.similarRecommendations.length) {
+    sections.push('<div class="search-empty-note">可以调整预算或尝试更常见的商品名称。</div>');
+  }
+  $("searchResults").innerHTML = sections.join("");
+  bindSearchResultEvents();
+}
+
 async function semanticSearch() {
   const query = $("searchInput").value.trim();
+  if (!query) {
+    $("intentBox").innerHTML = "";
+    renderSearchResults([]);
+    return;
+  }
   let intent = localSearchIntent(query);
   try {
     const response = await postJson("/api/search-intent", { query });
@@ -921,22 +960,7 @@ async function semanticSearch() {
     .map((item) => `<span>${escapeText(item)}</span>`)
     .join("");
 
-  const results = state.products
-    .map((item) => {
-      const haystack = `${item.name} ${item.category} ${(item.tags || []).join(" ")}`;
-      let score = 0;
-      if (intent.categoryIntent !== "不限" && item.category.includes(intent.categoryIntent)) score += 4;
-      (intent.keywords || []).forEach((keyword) => {
-        if (haystack.includes(keyword)) score += 2;
-      });
-      if (String(intent.useCase).includes("新手") && haystack.includes("新手")) score += 3;
-      if (intent.budgetHint && item.price <= intent.budgetHint) score += 2;
-      return { ...item, matchScore: score };
-    })
-    .filter((item) => item.matchScore > 0)
-    .sort((a, b) => b.matchScore - a.matchScore);
-
-  renderSearchResults(results.length ? results : state.products, "语义匹配");
+  renderSearchMatches(query, SearchMatching.rankProducts(query, intent, state.products));
 }
 
 function runAuthenticityCheck() {
