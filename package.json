@@ -4,9 +4,14 @@
   "private": true,
   "description": "AI second-hand ecommerce workbench for course demonstration with DeepSeek proxy and local fallback.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check:sql": "node tools/check-sql-connection.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "mssql": "^12.7.0"
   }
 }
