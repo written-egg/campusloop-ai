@@ -3,6 +3,7 @@ require("dotenv").config({ quiet: true });
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { randomBytes } = require("crypto");
 const sqlStore = require("./lib/sqlStore");
 
 const root = __dirname;
@@ -12,6 +13,8 @@ const dbFile = path.join(dataDir, "db.json");
 const port = Number(process.env.PORT || 5173);
 const deepSeekKey = process.env.DEEPSEEK_API_KEY || "";
 const deepSeekModel = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+const sessions = new Map();
+const sessionLifetimeMs = 12 * 60 * 60 * 1000;
 
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -29,10 +32,29 @@ function send(res, status, body, type = "application/json; charset=utf-8") {
     "Content-Type": type,
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
+    "Access-Control-Allow-Headers": "Content-Type,Authorization"
   });
   if (Buffer.isBuffer(body)) return res.end(body);
   res.end(typeof body === "string" ? body : JSON.stringify(body));
+}
+
+function createSession(userId) {
+  const token = randomBytes(32).toString("hex");
+  sessions.set(token, { userId, expiresAt: Date.now() + sessionLifetimeMs });
+  return token;
+}
+
+function readSession(req) {
+  const authorization = String(req.headers.authorization || "");
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session) return { token, userId: null };
+  if (session.expiresAt <= Date.now()) {
+    sessions.delete(token);
+    return { token, userId: null };
+  }
+  return { token, userId: session.userId };
 }
 
 function readJson(file) {
@@ -117,7 +139,16 @@ async function createProduct(body) {
 
 async function readBody(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 6 * 1024 * 1024) {
+      const error = new Error("请求内容过大。");
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
   if (!chunks.length) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -265,6 +296,26 @@ const apiHandlers = {
   },
   "/api/products": async (body) => {
     return createProduct(body);
+  },
+  "/api/auth/register": async (body) => {
+    if (!sqlStore.isSqlEnabled()) {
+      const error = new Error("注册功能需要配置 SQL Server。");
+      error.statusCode = 503;
+      throw error;
+    }
+    return sqlStore.registerAccount(body);
+  },
+  "/api/auth/login": async (body) => {
+    if (!sqlStore.isSqlEnabled()) {
+      const error = new Error("登录功能需要配置 SQL Server。");
+      error.statusCode = 503;
+      throw error;
+    }
+    return sqlStore.loginAccount(body);
+  },
+  "/api/auth/logout": async (body) => {
+    if (body.sessionToken) sessions.delete(body.sessionToken);
+    return { loggedOut: true };
   }
 };
 
@@ -300,14 +351,38 @@ http
     if (req.method === "GET" && url.pathname === "/api/users") {
       return send(res, 200, { ok: true, data: await getUsers(), storage: sqlStore.isSqlEnabled() ? "sql-server" : "json" });
     }
-    if (req.method === "POST" && apiHandlers[url.pathname]) {
-      const body = await readBody(req);
+    if (req.method === "GET" && url.pathname === "/api/auth/session") {
       try {
-        const data = await apiHandlers[url.pathname](body);
-        return send(res, 200, { ok: true, data, deepSeekEnabled: Boolean(deepSeekKey) });
+        const session = readSession(req);
+        if (!session?.userId) return send(res, 401, { ok: false, data: null, error: "登录已失效，请重新登录。" });
+        if (!sqlStore.isSqlEnabled()) {
+          return send(res, 503, { ok: false, data: null, error: "登录功能需要配置 SQL Server。" });
+        }
+        const user = await sqlStore.getUserByExternalId(session.userId);
+        if (!user) {
+          sessions.delete(session.token);
+          return send(res, 401, { ok: false, data: null, error: "登录用户不存在，请重新登录。" });
+        }
+        return send(res, 200, { ok: true, data: user, error: null });
       } catch (error) {
-        if (url.pathname === "/api/products" || url.pathname === "/api/users") {
-          return send(res, 500, { ok: false, error: error.message || "Save failed" });
+        return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Session check failed" });
+      }
+    }
+    if (req.method === "POST" && apiHandlers[url.pathname]) {
+      let body = {};
+      try {
+        body = await readBody(req);
+        const session = readSession(req);
+        if (url.pathname === "/api/products") body.authenticatedUserId = session?.userId || null;
+        if (url.pathname === "/api/auth/logout") body.sessionToken = session?.token || null;
+        let data = await apiHandlers[url.pathname](body);
+        if (url.pathname === "/api/auth/register" || url.pathname === "/api/auth/login") {
+          data = { ...data, sessionToken: createSession(data.id) };
+        }
+        return send(res, 200, { ok: true, data, error: null, deepSeekEnabled: Boolean(deepSeekKey) });
+      } catch (error) {
+        if (url.pathname === "/api/products" || url.pathname === "/api/users" || url.pathname.startsWith("/api/auth/")) {
+          return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Save failed" });
         }
         const fallback =
           url.pathname === "/api/generate-listing"

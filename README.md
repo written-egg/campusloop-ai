@@ -27,6 +27,13 @@ http://localhost:5173
 
 先确认 `CampusLoopDB` 已执行 `database/schema.sql` 和 `database/seed.sql`。不要把数据库密码写进代码或提交到 GitHub。
 
+如果数据库已经存在且包含本地测试数据，不要重新执行 `schema.sql`。使用非破坏性迁移：
+
+```powershell
+npm run migrate:auth
+npm run check:auth-db
+```
+
 推荐创建专用开发账号，不要长期使用 `sa`：
 
 ```powershell
@@ -83,6 +90,17 @@ node server.js
 - `POST /api/products`
 - `GET /api/users`
 - `POST /api/users`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+
+账户注册和登录成功后会返回 `sessionToken`。注册账号发布商品时需要发送：
+
+```text
+Authorization: Bearer <sessionToken>
+```
+
+接口格式和 B 成员联调说明见 `docs/a-auth-api-handoff.md`。
 
 数据库文件：
 

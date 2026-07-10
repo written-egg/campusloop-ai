@@ -8,6 +8,8 @@
 - `seed.sql`：导入当前网站已有的示例用户、商品、封面图、收藏、消息和 AI 风控示例数据。
 - `verify.sql`：验证建库、种子数据和商品视图是否成功。
 - `create-dev-login.sql`：创建本地开发账号 `campusloop_dev`，用于网站后端连接数据库。
+- `migrations/002_auth_and_advanced_objects.sql`：在不删除现有数据的前提下增加账户字段、视图、存储过程和触发器。
+- `queries.sql`：课程答辩可直接执行的典型业务查询。
 
 ## 执行顺序
 
@@ -56,6 +58,17 @@ npm start
 ```
 
 `npm run check:sql` 通过后，注册用户和发布商品会写入 SQL Server。
+
+## 已有数据库升级
+
+已经存在 `CampusLoopDB` 时，不要重新执行会重建表的 `schema.sql`。配置好本地 `.env` 后执行：
+
+```powershell
+npm run migrate:auth
+npm run check:sql
+```
+
+迁移会保留现有用户、商品和图片，并增加登录字段、交易汇总视图、风险商品视图、存储过程和触发器。
 
 ## 和当前网站字段的对应关系
 

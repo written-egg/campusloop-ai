@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260708-merge" />
+    <link rel="stylesheet" href="/styles.css?v=20260710-account-detail" />
   </head>
   <body>
     <header class="site-header">
@@ -28,7 +28,7 @@
       </nav>
 
       <div class="header-actions">
-        <a class="cta-pill" href="#login" data-route="login">登录</a>
+        <a class="cta-pill" id="accountAction" href="#login" data-route="login">登录</a>
       </div>
     </header>
 
@@ -100,8 +100,17 @@
               <button class="tab-button" data-filter="图书教材">教材</button>
             </div>
           </div>
+          <div id="marketStatus" class="page-state" role="status" aria-live="polite">正在加载商品...</div>
           <div id="marketGrid" class="market-grid"></div>
         </section>
+      </section>
+
+      <section class="page" id="page-detail" data-title="商品详情" data-kicker="校园好物档案">
+        <div class="detail-toolbar">
+          <button id="detailBackBtn" class="ghost-button" type="button">← 返回首页</button>
+        </div>
+        <div id="detailStatus" class="page-state" role="status" aria-live="polite">正在加载商品...</div>
+        <article id="detailContent" class="detail-layout" hidden></article>
       </section>
 
       <section class="page" id="page-estimate" data-title="智能估价" data-kicker="L1 参数库 + L2 成交拟合">
@@ -253,20 +262,60 @@
       <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
         <section class="login-layout">
           <div class="login-hero">
-            <p class="kicker">轻量登录</p>
-            <h2>用昵称和校区创建演示账号。</h2>
-            <p>课程演示版只用于绑定发布商品，不做密码和真实身份认证。</p>
+            <p class="kicker">校园账户</p>
+            <h2>登录后发布，交易身份更清楚。</h2>
+            <p>账号与密码由后端认证接口校验。会话令牌只保存在当前浏览器会话中，关闭会话后不会继续保留。</p>
           </div>
-          <form class="tool-card" id="loginForm">
-            <label>昵称<input id="loginNameInput" value="林同学" /></label>
-            <label>校区<input id="loginCampusInput" value="南校区" /></label>
-            <small id="loginStatus" class="save-status"></small>
+
+          <div class="tool-card account-card">
+            <div class="auth-tabs" role="tablist" aria-label="账户操作">
+              <button id="loginTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="loginForm">登录</button>
+              <button id="registerTab" type="button" role="tab" aria-selected="false" aria-controls="registerForm">注册</button>
+            </div>
+
+            <form class="auth-form" id="loginForm" novalidate>
+              <label>登录账号
+                <input id="loginNameInput" name="loginName" autocomplete="username" minlength="4" maxlength="30" placeholder="4-30 位字母、数字或下划线" required />
+              </label>
+              <label>密码
+                <span class="password-field">
+                  <input id="loginPasswordInput" name="password" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 个字符" required />
+                  <button class="password-toggle" type="button" data-password-target="loginPasswordInput" aria-label="显示登录密码">显示</button>
+                </span>
+              </label>
+              <button id="loginSubmitBtn" class="login-submit" type="submit">登录</button>
+              <button class="auth-switch-link" type="button" data-auth-mode="register">没有账号？立即注册</button>
+            </form>
+
+            <form class="auth-form" id="registerForm" novalidate hidden>
+              <label>登录账号
+                <input id="registerLoginNameInput" name="loginName" autocomplete="username" minlength="4" maxlength="30" placeholder="4-30 位字母、数字或下划线" required />
+              </label>
+              <label>昵称<input id="registerNameInput" name="name" autocomplete="nickname" maxlength="40" placeholder="例如：张同学" required /></label>
+              <label>校区<input id="registerCampusInput" name="campus" maxlength="50" placeholder="例如：南校区" required /></label>
+              <label>密码
+                <span class="password-field">
+                  <input id="registerPasswordInput" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="至少 6 个字符" required />
+                  <button class="password-toggle" type="button" data-password-target="registerPasswordInput" aria-label="显示注册密码">显示</button>
+                </span>
+              </label>
+              <label>确认密码
+                <span class="password-field">
+                  <input id="registerConfirmInput" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" placeholder="再次输入密码" required />
+                  <button class="password-toggle" type="button" data-password-target="registerConfirmInput" aria-label="显示确认密码">显示</button>
+                </span>
+              </label>
+              <button id="registerSubmitBtn" class="login-submit" type="submit">注册</button>
+              <button class="auth-switch-link" type="button" data-auth-mode="login">已有账号？返回登录</button>
+            </form>
+
+            <small id="loginStatus" class="auth-status" role="status" aria-live="polite"></small>
             <div class="current-user-card">
               <span>当前用户</span>
               <strong id="currentUserText">未登录</strong>
             </div>
-            <button class="login-submit" type="submit">登录并继续发布</button>
-          </form>
+            <button id="logoutBtn" class="logout-button" type="button" hidden>退出登录</button>
+          </div>
         </section>
       </section>
     </main>
@@ -276,6 +325,6 @@
       <button id="successDialogConfirm" type="button">确认</button>
     </dialog>
 
-    <script src="/app.js?v=20260710-success-dialog"></script>
+    <script src="/app.js?v=20260710-account-detail-2"></script>
   </body>
 </html>
