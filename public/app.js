@@ -53,6 +53,18 @@ async function postJson(url, body) {
   return response.json();
 }
 
+function apiErrorMessage(error, fallback = "请求失败，请检查本地服务是否正在运行。") {
+  if (!error) return fallback;
+  if (typeof error === "string") return error;
+  return error.message || fallback;
+}
+
+function storageLabel(storage) {
+  if (storage === "sql-server") return "SQL Server";
+  if (storage === "json") return "data/db.json";
+  return "后端数据源";
+}
+
 function money(value) {
   return `¥${Math.round(Number(value) || 0).toLocaleString("zh-CN")}`;
 }
@@ -246,17 +258,26 @@ function renderCurrentUser() {
 
 async function loginUser(event) {
   event?.preventDefault();
-  const response = await postJson("/api/users", {
-    name: $("loginNameInput").value,
-    campus: $("loginCampusInput").value
-  });
-  state.currentUser = response.data;
-  localStorage.setItem("campusLoopUserId", state.currentUser.id);
-  if (!state.users.some((user) => user.id === state.currentUser.id)) state.users.unshift(state.currentUser);
-  renderCurrentUser();
-  $("loginStatus").textContent = `已登录：${state.currentUser.name}，现在可以发布商品。`;
-  $("saveStatus").textContent = `已登录：${state.currentUser.name}`;
-  location.hash = "publish";
+  $("loginStatus").textContent = "正在连接用户接口...";
+  try {
+    const response = await postJson("/api/users", {
+      name: $("loginNameInput").value,
+      campus: $("loginCampusInput").value
+    });
+    if (!response.ok || !response.data?.id) throw new Error(response.error || "用户接口未返回有效用户");
+    state.currentUser = response.data;
+    localStorage.setItem("campusLoopUserId", state.currentUser.id);
+    if (!state.users.some((user) => user.id === state.currentUser.id)) state.users.unshift(state.currentUser);
+    renderCurrentUser();
+    $("loginStatus").textContent = `已登录：${state.currentUser.name}，用户已由后端接口创建或复用。`;
+    $("saveStatus").textContent = `已登录：${state.currentUser.name}`;
+    location.hash = "publish";
+  } catch (error) {
+    state.currentUser = null;
+    renderCurrentUser();
+    $("loginStatus").textContent = `登录失败：${apiErrorMessage(error)}`;
+    $("saveStatus").textContent = "请先完成登录接口联调，再发布商品。";
+  }
 }
 
 function renderMarketProducts(category = "all") {
@@ -439,11 +460,27 @@ async function saveCurrentProduct() {
       campus: state.currentUser.campus
     };
     let product = null;
+    let saveMessage = "";
     try {
       const productResponse = await postJson("/api/products", payload);
       if (!productResponse.ok || !productResponse.data?.name) throw new Error(productResponse.error || "发布接口未返回商品");
       product = productResponse.data;
-    } catch {
+      try {
+        const productsResponse = await getJson("/api/products");
+        const remoteProducts = productsResponse.data || [];
+        const persisted = remoteProducts.some((item) => item.id === product.id);
+        if (persisted) {
+          state.products = mergeProducts(remoteProducts);
+          saveMessage = `发布成功：${product.name}（已写入 ${storageLabel(productsResponse.storage)}，刷新后仍可见）`;
+        } else {
+          state.products = mergeProducts([product, ...remoteProducts]);
+          saveMessage = `发布成功：${product.name}（接口已返回成功，但复查列表暂未命中，请刷新后再次确认）`;
+        }
+      } catch (verifyError) {
+        state.products = mergeProducts([product, ...state.products]);
+        saveMessage = `发布成功：${product.name}（后端已返回成功；复查列表失败：${apiErrorMessage(verifyError)}）`;
+      }
+    } catch (error) {
       product = {
         id: `local-${Date.now()}`,
         ...payload,
@@ -452,14 +489,15 @@ async function saveCurrentProduct() {
         createdAt: new Date().toISOString(),
         localOnly: true
       };
+      rememberLocalProduct(product);
+      state.products = mergeProducts([product, ...state.products]);
+      saveMessage = `接口保存失败，已临时保存在本机：${product.name}。刷新本机仍可见，换设备不可见。原因：${apiErrorMessage(error)}`;
     }
 
-    rememberLocalProduct(product);
-    state.products = mergeProducts([product, ...state.products]);
     showAllMarketTab();
     renderMarketProducts("all");
     renderSearchResults(state.products.slice(0, 4));
-    $("saveStatus").textContent = `发布成功：${product.name}`;
+    $("saveStatus").textContent = saveMessage;
     location.hash = "market";
   } finally {
     $("publishProductBtn").disabled = false;
