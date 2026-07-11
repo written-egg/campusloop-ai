@@ -10,6 +10,7 @@
     "check:auth-api": "node tools/check-auth-api.js",
     "check:advanced-db": "node tools/check-advanced-database.js",
     "check:search": "node tools/check-search-matching.js",
+    "check:marketplace-api": "node tools/check-marketplace-api.js",
     "migrate:auth": "node tools/run-sql-file.js database/migrations/002_auth_and_advanced_objects.sql",
     "migrate:product-description": "node tools/run-sql-file.js database/migrations/003_product_description_view.sql"
   },
