@@ -274,9 +274,22 @@ function authHeaders() {
   return hasAuthenticatedSession() ? { Authorization: `Bearer ${state.sessionToken}` } : {};
 }
 
+function resetMarketplaceState() {
+  state.myProducts = [];
+  state.myProductsLoaded = false;
+  state.myProductsError = "";
+  state.myProductFilter = "all";
+  state.tradeRecords = [];
+  state.transactionsLoaded = false;
+  state.transactionsError = "";
+  state.transactionRole = "buyer";
+  state.editingProductId = "";
+}
+
 function persistSession(account) {
   const { sessionToken, ...currentUser } = account || {};
   if (!currentUser.id || !sessionToken) throw new Error("认证接口未返回完整的用户和会话令牌。");
+  resetMarketplaceState();
   state.currentUser = currentUser;
   state.sessionToken = sessionToken;
   sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(currentUser));
@@ -302,6 +315,7 @@ async function restoreSession() {
 }
 
 function clearSession() {
+  resetMarketplaceState();
   state.currentUser = null;
   state.sessionToken = "";
   sessionStorage.removeItem(SESSION_USER_KEY);
@@ -571,12 +585,6 @@ async function logoutUser() {
     logoutMessage = `退出接口未完成，但本地登录状态已清除：${apiErrorMessage(error)}`;
   } finally {
     clearSession();
-    state.myProducts = [];
-    state.myProductsLoaded = false;
-    state.myProductsError = "";
-    state.tradeRecords = [];
-    state.transactionsLoaded = false;
-    state.transactionsError = "";
     clearPasswordFields();
     renderCurrentUser();
     $("loginStatus").textContent = logoutMessage;
@@ -634,10 +642,6 @@ function setWorkspaceStatus(id, message = "", tone = "") {
 function handleExpiredMarketplaceSession(error) {
   if (error?.status !== 401) return false;
   clearSession();
-  state.myProducts = [];
-  state.myProductsLoaded = false;
-  state.tradeRecords = [];
-  state.transactionsLoaded = false;
   renderCurrentUser();
   $("loginStatus").textContent = "登录已失效，请重新登录。";
   navigateTo("login");

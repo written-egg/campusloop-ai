@@ -44,6 +44,7 @@
 | Authorization | 通过 | 受保护接口均携带当前会话 Bearer 请求头 |
 | 390px 手机宽度 | 通过 | 无横向溢出、按钮和卡片无重叠 |
 | JavaScript 页面异常 | 通过 | 浏览器测试未捕获页面脚本错误 |
+| 账号切换缓存隔离 | 通过 | 登录或注册新账号、会话失效和退出时统一清空前一账号的商品与交易缓存 |
 
 ## 命令检查
 
@@ -53,6 +54,18 @@
 | `node --check public/app.js` | 通过 |
 | `git diff --check` | 通过，仅有 Windows 换行提示 |
 | `npm run check:marketplace-api` | 未通过：本机未配置 `DB_USER`、`DB_PASSWORD` |
+
+## A 环境真实 SQL Server 复验
+
+A 在配置真实 `CampusLoopDB` 的环境中检出本分支后完成复验：
+
+- `npm run check:marketplace-api`：通过，16 项商品管理、权限和交易状态检查全部为 `true`。
+- `npm run check:auth-api`：通过，注册、登录、会话、发布和回滚检查全部为 `true`。
+- `npm run check:search`：通过。
+- `npm run check:advanced-db`：通过，存储过程与触发器状态流转正常。
+- 测试结束后用户、商品、图片和交易临时数据均已自动清理。
+
+合并前复核还修复了同一浏览器直接切换账号时可能保留前一账号私有列表的问题。`persistSession()` 和 `clearSession()` 现在统一重置商品、交易、筛选、错误和加载状态。
 
 ## 截图证据
 
