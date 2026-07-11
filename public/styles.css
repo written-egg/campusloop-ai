@@ -1071,6 +1071,40 @@ label {
   gap: 14px;
 }
 
+.search-group {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.search-group.related {
+  margin-top: 34px;
+  padding-top: 24px;
+  border-top: 2px dashed var(--line);
+}
+
+.search-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.search-group-head h3 {
+  font-size: 22px;
+}
+
+.search-group-head span,
+.search-empty-note {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.search-empty-note {
+  text-align: center;
+}
+
 .result-card {
   display: grid;
   grid-template-columns: 100px minmax(0, 1fr) auto;

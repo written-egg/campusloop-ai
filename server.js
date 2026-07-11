@@ -221,7 +221,6 @@ function fallbackSearchIntent(query = "") {
   const text = String(query);
   const categoryMap = [
     ["滑雪", "运动户外"],
-    ["新手", "运动户外"],
     ["手机", "数码电子"],
     ["电脑", "数码电子"],
     ["宿舍", "生活用品"],
