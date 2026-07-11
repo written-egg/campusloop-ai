@@ -31,7 +31,7 @@ function send(res, status, body, type = "application/json; charset=utf-8") {
   res.writeHead(status, {
     "Content-Type": type,
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization"
   });
   if (Buffer.isBuffer(body)) return res.end(body);
@@ -55,6 +55,21 @@ function readSession(req) {
     return { token, userId: null };
   }
   return { token, userId: session.userId };
+}
+
+function requireSessionUser(req) {
+  if (!sqlStore.isSqlEnabled()) {
+    const error = new Error("该功能需要配置 SQL Server。");
+    error.statusCode = 503;
+    throw error;
+  }
+  const session = readSession(req);
+  if (!session?.userId) {
+    const error = new Error("登录已失效，请重新登录。");
+    error.statusCode = 401;
+    throw error;
+  }
+  return session.userId;
 }
 
 function readJson(file) {
@@ -365,6 +380,41 @@ http
         return send(res, 200, { ok: true, data: user, error: null });
       } catch (error) {
         return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Session check failed" });
+      }
+    }
+    const ownProductMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)$/);
+    const offShelfMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)\/off-shelf$/);
+    const reserveMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/reserve$/);
+    const transactionActionMatch = url.pathname.match(/^\/api\/transactions\/(\d+)\/(finish|cancel)$/);
+    const isMarketplaceApi =
+      (req.method === "GET" && (url.pathname === "/api/my/products" || url.pathname === "/api/my/transactions")) ||
+      (req.method === "PATCH" && Boolean(ownProductMatch)) ||
+      (req.method === "POST" && Boolean(offShelfMatch || reserveMatch || transactionActionMatch));
+
+    if (isMarketplaceApi) {
+      try {
+        const userId = requireSessionUser(req);
+        let data;
+        if (req.method === "GET" && url.pathname === "/api/my/products") {
+          data = await sqlStore.listProductsByOwner(userId);
+        } else if (req.method === "GET" && url.pathname === "/api/my/transactions") {
+          data = await sqlStore.listTransactionsForUser(userId);
+        } else if (req.method === "PATCH" && ownProductMatch) {
+          data = await sqlStore.updateOwnProduct(userId, decodeURIComponent(ownProductMatch[1]), await readBody(req));
+        } else if (offShelfMatch) {
+          data = await sqlStore.takeOwnProductOffline(userId, decodeURIComponent(offShelfMatch[1]));
+        } else if (reserveMatch) {
+          data = await sqlStore.reserveProduct(userId, decodeURIComponent(reserveMatch[1]));
+        } else if (transactionActionMatch) {
+          data = await sqlStore.updateTransactionStatus(
+            userId,
+            Number(transactionActionMatch[1]),
+            transactionActionMatch[2] === "finish" ? "finished" : "cancelled"
+          );
+        }
+        return send(res, 200, { ok: true, data, error: null, storage: "sql-server" });
+      } catch (error) {
+        return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Marketplace operation failed" });
       }
     }
     if (req.method === "POST" && apiHandlers[url.pathname]) {
