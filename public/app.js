@@ -9,6 +9,15 @@ const state = {
   selectedProductId: "",
   marketError: "",
   authMode: "login",
+  myProducts: [],
+  myProductsLoaded: false,
+  myProductsError: "",
+  myProductFilter: "all",
+  tradeRecords: [],
+  transactionsLoaded: false,
+  transactionsError: "",
+  transactionRole: "buyer",
+  editingProductId: "",
   recognition: null,
   listing: null,
   latestPrice: null,
@@ -41,9 +50,39 @@ function showSuccessDialog(message) {
   });
 }
 
+function showConfirmDialog(message, confirmLabel = "确认") {
+  const dialog = $("confirmDialog");
+  const cancelButton = $("confirmDialogCancel");
+  const confirmButton = $("confirmDialogSubmit");
+  $("confirmDialogMessage").textContent = message;
+  confirmButton.textContent = confirmLabel;
+
+  return new Promise((resolve) => {
+    const finish = (confirmed) => {
+      cancelButton.removeEventListener("click", cancel);
+      confirmButton.removeEventListener("click", confirm);
+      dialog.removeEventListener("cancel", cancelDialog);
+      dialog.close();
+      resolve(confirmed);
+    };
+    const cancel = () => finish(false);
+    const confirm = () => finish(true);
+    const cancelDialog = (event) => {
+      event.preventDefault();
+      finish(false);
+    };
+    cancelButton.addEventListener("click", cancel);
+    confirmButton.addEventListener("click", confirm);
+    dialog.addEventListener("cancel", cancelDialog);
+    dialog.showModal();
+  });
+}
+
 const routes = {
   market: "page-market",
   detail: "page-detail",
+  "my-products": "page-my-products",
+  "my-transactions": "page-my-transactions",
   estimate: "page-estimate",
   authenticity: "page-authenticity",
   publish: "page-publish",
@@ -103,6 +142,18 @@ async function postJson(url, body, headers = {}) {
   );
 }
 
+async function patchJson(url, body, headers = {}) {
+  return requestJson(
+    url,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body)
+    },
+    12000
+  );
+}
+
 function apiErrorMessage(error, fallback = "请求失败，请检查本地服务是否正在运行。") {
   if (error?.name === "AbortError") return "网络连接超时，请稍后重试。";
   if (error?.status === 400) return `输入内容不符合要求：${error.message || "请检查后重试。"}`;
@@ -114,6 +165,15 @@ function apiErrorMessage(error, fallback = "请求失败，请检查本地服务
   if (!error) return fallback;
   if (typeof error === "string") return error;
   return error.message || fallback;
+}
+
+function marketplaceErrorMessage(error, fallback = "操作失败，请稍后重试。") {
+  if (error?.status === 400) return error.message || "输入内容不符合要求。";
+  if (error?.status === 401) return "登录已失效，请重新登录。";
+  if (error?.status === 403) return error.message || "你没有权限执行此操作。";
+  if (error?.status === 404) return error.message || "商品或交易不存在。";
+  if (error?.status === 409) return error.message || "当前状态不允许执行此操作。";
+  return apiErrorMessage(error, fallback);
 }
 
 function storageLabel(storage) {
@@ -250,15 +310,25 @@ function clearSession() {
 
 function setRoute(routeName) {
   let route = routes[routeName] ? routeName : "market";
-  if (route === "publish" && !hasAuthenticatedSession()) {
+  const protectedRoutes = new Set(["publish", "my-products", "my-transactions"]);
+  if (protectedRoutes.has(route) && !hasAuthenticatedSession()) {
     route = "login";
-    $("loginStatus").textContent = "请先登录，再发布商品。";
+    $("loginStatus").textContent = "请先登录，再使用商品管理和交易功能。";
   }
   state.activeRoute = route;
   document.querySelectorAll(".page").forEach((page) => page.classList.remove("active"));
   document.querySelectorAll(".nav-list a").forEach((link) => link.classList.toggle("active", link.dataset.route === route));
   $(routes[route]).classList.add("active");
-  if (route === "detail") renderProductDetail(state.selectedProductId || sessionStorage.getItem(SELECTED_PRODUCT_KEY));
+  if (route === "detail") {
+    renderProductDetail(state.selectedProductId || sessionStorage.getItem(SELECTED_PRODUCT_KEY));
+    if (hasAuthenticatedSession() && !state.myProductsLoaded) {
+      refreshMyProducts({ quiet: true }).then(() => {
+        if (state.activeRoute === "detail") renderProductDetail(state.selectedProductId);
+      });
+    }
+  }
+  if (route === "my-products") refreshMyProducts();
+  if (route === "my-transactions") refreshTransactions();
   return route;
 }
 
@@ -371,6 +441,8 @@ function renderCurrentUser() {
     : "未登录";
   $("accountAction").textContent = loggedIn ? state.currentUser.name || "个人中心" : "登录";
   $("logoutBtn").hidden = !loggedIn;
+  $("myProductsNav").hidden = !loggedIn;
+  $("myTransactionsNav").hidden = !loggedIn;
   if (loggedIn) $("saveStatus").textContent = `当前卖家：${state.currentUser.name}`;
 }
 
@@ -499,6 +571,12 @@ async function logoutUser() {
     logoutMessage = `退出接口未完成，但本地登录状态已清除：${apiErrorMessage(error)}`;
   } finally {
     clearSession();
+    state.myProducts = [];
+    state.myProductsLoaded = false;
+    state.myProductsError = "";
+    state.tradeRecords = [];
+    state.transactionsLoaded = false;
+    state.transactionsError = "";
     clearPasswordFields();
     renderCurrentUser();
     $("loginStatus").textContent = logoutMessage;
@@ -529,10 +607,341 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+const PRODUCT_STATUS_LABELS = {
+  on_sale: "在售",
+  reserved: "已预订",
+  sold: "已售出",
+  offline: "已下架"
+};
+
+const TRANSACTION_STATUS_LABELS = {
+  pending: "待确认",
+  finished: "已完成",
+  cancelled: "已取消"
+};
+
+function statusLabel(status, type = "product") {
+  return (type === "transaction" ? TRANSACTION_STATUS_LABELS : PRODUCT_STATUS_LABELS)[status] || status || "状态未知";
+}
+
+function setWorkspaceStatus(id, message = "", tone = "") {
+  const element = $(id);
+  element.textContent = message;
+  element.className = `page-state${tone ? ` ${tone}` : ""}`;
+  element.hidden = !message;
+}
+
+function handleExpiredMarketplaceSession(error) {
+  if (error?.status !== 401) return false;
+  clearSession();
+  state.myProducts = [];
+  state.myProductsLoaded = false;
+  state.tradeRecords = [];
+  state.transactionsLoaded = false;
+  renderCurrentUser();
+  $("loginStatus").textContent = "登录已失效，请重新登录。";
+  navigateTo("login");
+  return true;
+}
+
+function openManagedProductDetail(id) {
+  const managed = state.myProducts.find((item) => String(item.id) === String(id));
+  if (!managed) return;
+  state.products = [managed, ...state.products.filter((item) => String(item.id) !== String(id))];
+  openProductDetail(id);
+}
+
+function renderMyProducts() {
+  const filtered = state.myProductFilter === "all"
+    ? state.myProducts
+    : state.myProducts.filter((item) => item.status === state.myProductFilter);
+  $("myProductsEmpty").hidden = filtered.length > 0;
+  $("myProductsGrid").innerHTML = filtered
+    .map(
+      (item) => `
+        <article class="managed-product-card" data-id="${escapeText(item.id)}">
+          <div class="managed-product-main" role="link" tabindex="0" aria-label="查看 ${escapeText(item.name)} 的详情">
+            <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
+            <div class="managed-product-copy">
+              <div class="managed-product-title">
+                <span class="status-badge ${escapeText(item.status)}">${escapeText(statusLabel(item.status))}</span>
+                <span>${escapeText(item.category || "其他")}</span>
+              </div>
+              <h3>${escapeText(item.name)}</h3>
+              <p>${escapeText(item.description || "卖家暂未补充商品描述。")}</p>
+              <div class="managed-product-meta">
+                <strong>${money(item.price)}</strong>
+                <span>${escapeText(item.condition || "成色待补充")} · ${escapeText(formatDate(item.createdAt))}</span>
+              </div>
+            </div>
+          </div>
+          ${item.status === "on_sale" ? `
+            <div class="managed-product-actions">
+              <button class="ghost-button" type="button" data-product-action="edit" data-id="${escapeText(item.id)}">编辑</button>
+              <button class="danger-button" type="button" data-product-action="offline" data-id="${escapeText(item.id)}">下架</button>
+            </div>
+          ` : ""}
+        </article>
+      `
+    )
+    .join("");
+
+  document.querySelectorAll(".managed-product-card img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
+  document.querySelectorAll(".managed-product-main").forEach((main) => {
+    const open = () => openManagedProductDetail(main.closest(".managed-product-card").dataset.id);
+    main.addEventListener("click", open);
+    main.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        open();
+      }
+    });
+  });
+  document.querySelectorAll("[data-product-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.productAction === "edit") openEditProduct(button.dataset.id);
+      if (button.dataset.productAction === "offline") takeProductOffline(button.dataset.id, button);
+    });
+  });
+}
+
+async function refreshMyProducts({ quiet = false } = {}) {
+  if (!hasAuthenticatedSession()) return false;
+  if (!quiet) setWorkspaceStatus("myProductsStatus", "正在加载我的商品...", "loading");
+  try {
+    const response = await getJson("/api/my/products", authHeaders());
+    state.myProducts = Array.isArray(response.data) ? response.data : [];
+    state.myProductsLoaded = true;
+    state.myProductsError = "";
+    setWorkspaceStatus("myProductsStatus");
+    renderMyProducts();
+    return true;
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return false;
+    state.myProducts = [];
+    state.myProductsLoaded = false;
+    state.myProductsError = marketplaceErrorMessage(error, "我的商品加载失败，请稍后重试。");
+    renderMyProducts();
+    if (!quiet || state.activeRoute === "my-products") setWorkspaceStatus("myProductsStatus", state.myProductsError, "error");
+    return false;
+  }
+}
+
+function openEditProduct(id) {
+  const product = state.myProducts.find((item) => String(item.id) === String(id));
+  if (!product || product.status !== "on_sale") {
+    setWorkspaceStatus("myProductsStatus", "当前状态不能编辑，正在刷新商品列表。", "warning");
+    refreshMyProducts({ quiet: true });
+    return;
+  }
+  state.editingProductId = product.id;
+  $("editProductName").value = product.name || "";
+  $("editProductDescription").value = product.description || "";
+  $("editProductPrice").value = Number(product.price) || "";
+  $("editProductStatus").textContent = "";
+  $("editProductDialog").showModal();
+}
+
+async function submitProductEdit(event) {
+  event.preventDefault();
+  const name = $("editProductName").value.trim();
+  const description = $("editProductDescription").value.trim();
+  const price = Number($("editProductPrice").value);
+  if (!name) {
+    $("editProductStatus").textContent = "商品名称不能为空。";
+    return;
+  }
+  if (!Number.isFinite(price) || price <= 0) {
+    $("editProductStatus").textContent = "商品价格必须大于 0。";
+    return;
+  }
+
+  const button = $("editProductSubmit");
+  button.disabled = true;
+  button.textContent = "正在保存...";
+  $("editProductStatus").textContent = "正在提交修改...";
+  try {
+    await patchJson(`/api/my/products/${encodeURIComponent(state.editingProductId)}`, { name, description, price }, authHeaders());
+    $("editProductDialog").close();
+    await Promise.all([refreshMyProducts(), refreshProducts()]);
+    await showSuccessDialog("修改成功");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) {
+      $("editProductDialog").close();
+      return;
+    }
+    if (error?.status === 409) {
+      $("editProductStatus").textContent = "当前状态不能编辑，商品列表已刷新。";
+      await refreshMyProducts({ quiet: true });
+    } else {
+      $("editProductStatus").textContent = marketplaceErrorMessage(error, "修改失败，请稍后重试。");
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = "保存修改";
+  }
+}
+
+async function takeProductOffline(id, button) {
+  const product = state.myProducts.find((item) => String(item.id) === String(id));
+  if (!product) return;
+  const confirmed = await showConfirmDialog(`确认下架“${product.name}”吗？下架后将不能继续被预订。`, "确认下架");
+  if (!confirmed) return;
+  button.disabled = true;
+  button.textContent = "正在下架...";
+  try {
+    await postJson(`/api/my/products/${encodeURIComponent(id)}/off-shelf`, {}, authHeaders());
+    await Promise.all([refreshMyProducts(), refreshProducts()]);
+    await showSuccessDialog("下架成功");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    setWorkspaceStatus("myProductsStatus", marketplaceErrorMessage(error, "下架失败，请稍后重试。"), error?.status === 409 ? "warning" : "error");
+    if (error?.status === 409) await refreshMyProducts({ quiet: true });
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = "下架";
+    }
+  }
+}
+
+function renderTransactions() {
+  const filtered = state.tradeRecords.filter((item) => item.role === state.transactionRole);
+  $("transactionsEmpty").hidden = filtered.length > 0;
+  $("transactionsList").innerHTML = filtered
+    .map((item) => {
+      const counterpart = item.role === "buyer" ? item.seller : item.buyer;
+      const actions = item.status === "pending"
+        ? `${item.role === "seller" ? `<button type="button" data-transaction-action="finish" data-id="${escapeText(item.id)}">确认完成</button>` : ""}
+           <button class="danger-button" type="button" data-transaction-action="cancel" data-id="${escapeText(item.id)}">取消交易</button>`
+        : "";
+      return `
+        <article class="transaction-card">
+          <img src="${escapeText(item.productImage || imageFallbackFor("交易商品"))}" alt="${escapeText(item.productName)}" data-fallback="${escapeText(imageFallbackFor("交易商品"))}">
+          <div class="transaction-copy">
+            <div class="transaction-title-row">
+              <span class="status-badge ${escapeText(item.status)}">${escapeText(statusLabel(item.status, "transaction"))}</span>
+              <span>${item.role === "buyer" ? "买入" : "卖出"}</span>
+            </div>
+            <h3>${escapeText(item.productName)}</h3>
+            <p>交易对象：${escapeText(counterpart?.name || "校园同学")} · 创建于 ${escapeText(formatDate(item.createdAt))}</p>
+            <strong>${money(item.finalPrice)}</strong>
+          </div>
+          ${actions ? `<div class="transaction-actions">${actions}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+
+  document.querySelectorAll(".transaction-card img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
+  document.querySelectorAll("[data-transaction-action]").forEach((button) => {
+    button.addEventListener("click", () => updateTransaction(button.dataset.id, button.dataset.transactionAction, button));
+  });
+}
+
+async function refreshTransactions({ quiet = false } = {}) {
+  if (!hasAuthenticatedSession()) return false;
+  if (!quiet) setWorkspaceStatus("transactionsStatus", "正在加载我的交易...", "loading");
+  try {
+    const response = await getJson("/api/my/transactions", authHeaders());
+    state.tradeRecords = Array.isArray(response.data) ? response.data : [];
+    state.transactionsLoaded = true;
+    state.transactionsError = "";
+    setWorkspaceStatus("transactionsStatus");
+    renderTransactions();
+    return true;
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return false;
+    state.tradeRecords = [];
+    state.transactionsLoaded = false;
+    state.transactionsError = marketplaceErrorMessage(error, "我的交易加载失败，请稍后重试。");
+    renderTransactions();
+    if (!quiet || state.activeRoute === "my-transactions") setWorkspaceStatus("transactionsStatus", state.transactionsError, "error");
+    return false;
+  }
+}
+
+async function updateTransaction(id, action, button) {
+  const transaction = state.tradeRecords.find((item) => String(item.id) === String(id));
+  if (!transaction) return;
+  const finishing = action === "finish";
+  const confirmed = await showConfirmDialog(
+    finishing ? `确认“${transaction.productName}”已经完成交易吗？` : `确认取消“${transaction.productName}”的待处理交易吗？`,
+    finishing ? "确认完成" : "确认取消"
+  );
+  if (!confirmed) return;
+  button.disabled = true;
+  button.textContent = finishing ? "正在确认..." : "正在取消...";
+  try {
+    await postJson(`/api/transactions/${encodeURIComponent(id)}/${finishing ? "finish" : "cancel"}`, {}, authHeaders());
+    await Promise.all([refreshTransactions(), refreshMyProducts({ quiet: true }), refreshProducts()]);
+    await showSuccessDialog(finishing ? "交易已完成" : "交易已取消");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    setWorkspaceStatus("transactionsStatus", marketplaceErrorMessage(error, "交易操作失败，请稍后重试。"), error?.status === 409 ? "warning" : "error");
+    if (error?.status === 409) await refreshTransactions({ quiet: true });
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = finishing ? "确认完成" : "取消交易";
+    }
+  }
+}
+
+async function reserveProduct(id, button) {
+  if (!hasAuthenticatedSession()) {
+    $("loginStatus").textContent = "请先登录，再预订商品。";
+    navigateTo("login");
+    return;
+  }
+  const product = state.products.find((item) => String(item.id) === String(id));
+  if (!product) return;
+  const confirmed = await showConfirmDialog(`确认预订“${product.name}”吗？最终价格以当前数据库售价为准。`, "确认预订");
+  if (!confirmed) return;
+  button.disabled = true;
+  button.textContent = "正在预订...";
+  try {
+    await postJson(`/api/products/${encodeURIComponent(id)}/reserve`, {}, authHeaders());
+    await Promise.all([refreshProducts(), refreshTransactions({ quiet: true }), refreshMyProducts({ quiet: true })]);
+    await showSuccessDialog("预订成功");
+    state.transactionRole = "buyer";
+    updateTransactionTabs();
+    navigateTo("my-transactions");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    setWorkspaceStatus("detailStatus", marketplaceErrorMessage(error, "预订失败，请稍后重试。"), error?.status === 409 ? "warning" : "error");
+    if (error?.status === 409) await refreshProducts();
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = "立即预订";
+    }
+  }
+}
+
+function updateTransactionTabs() {
+  document.querySelectorAll("[data-transaction-role]").forEach((button) => {
+    const active = button.dataset.transactionRole === state.transactionRole;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  renderTransactions();
+}
+
 function renderProductDetail(id) {
   const status = $("detailStatus");
   const content = $("detailContent");
-  const product = state.products.find((item) => String(item.id) === String(id || ""));
+  const publicProduct = state.products.find((item) => String(item.id) === String(id || ""));
+  const managedProduct = state.myProducts.find((item) => String(item.id) === String(id || ""));
+  const product = managedProduct ? { ...publicProduct, ...managedProduct } : publicProduct;
   if (!product) {
     content.hidden = true;
     content.innerHTML = "";
@@ -545,6 +954,24 @@ function renderProductDetail(id) {
   const discount = discountText(product);
   const originalPrice = Number(product.originalPrice);
   const tags = Array.isArray(product.tags) ? product.tags : [];
+  const productStatus = managedProduct?.status || product.status || "on_sale";
+  const isOwnProduct = Boolean(managedProduct);
+  let tradeControl = "";
+  if (!hasAuthenticatedSession()) {
+    tradeControl = productStatus === "on_sale"
+      ? '<button id="detailLoginToReserve" type="button">登录后预订</button>'
+      : `<p class="detail-trade-note">商品当前状态为“${escapeText(statusLabel(productStatus))}”，暂不可预订。</p>`;
+  } else if (!state.myProductsLoaded && !state.myProductsError) {
+    tradeControl = '<button type="button" disabled>正在确认商品权限...</button>';
+  } else if (state.myProductsError) {
+    tradeControl = '<p class="detail-trade-note error">暂时无法确认商品权限，请稍后刷新重试。</p>';
+  } else if (isOwnProduct) {
+    tradeControl = '<p class="detail-trade-note own">这是你发布的商品，不能预订自己的商品。</p>';
+  } else if (productStatus === "on_sale") {
+    tradeControl = `<button id="reserveProductBtn" type="button" data-reserve-id="${escapeText(product.id)}">立即预订</button>`;
+  } else {
+    tradeControl = `<p class="detail-trade-note">商品当前状态为“${escapeText(statusLabel(productStatus))}”，暂不可预订。</p>`;
+  }
   status.hidden = true;
   content.hidden = false;
   content.innerHTML = `
@@ -563,6 +990,7 @@ function renderProductDetail(id) {
       </div>
       <div class="detail-facts">
         <div><span>成色</span><strong>${escapeText(product.condition || "待补充")}</strong></div>
+        <div><span>状态</span><strong>${escapeText(statusLabel(productStatus))}</strong></div>
         <div><span>信用分</span><strong>${productTrust(product)}</strong></div>
         <div><span>浏览量</span><strong>${Number(product.views || 0)} 次</strong></div>
         <div><span>发布时间</span><strong>${escapeText(formatDate(product.createdAt))}</strong></div>
@@ -582,16 +1010,21 @@ function renderProductDetail(id) {
           <strong>${escapeText(product.campus || "校内")}</strong>
         </div>
       </section>
-      <div class="detail-actions" aria-label="后续交易功能占位">
+      <div class="detail-actions" aria-label="商品操作">
         <button type="button" disabled title="收藏功能后续开发">收藏</button>
         <button type="button" disabled title="消息功能后续开发">联系卖家</button>
-        <button type="button" disabled title="交易功能后续开发">立即预订</button>
+        ${tradeControl}
       </div>
     </div>
   `;
   const image = $("detailImage");
   image.addEventListener("error", () => {
     if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+  });
+  $("reserveProductBtn")?.addEventListener("click", (event) => reserveProduct(event.currentTarget.dataset.reserveId, event.currentTarget));
+  $("detailLoginToReserve")?.addEventListener("click", () => {
+    $("loginStatus").textContent = "请先登录，再预订商品。";
+    navigateTo("login");
   });
 }
 
@@ -1126,6 +1559,32 @@ function setupEvents() {
   });
   $("logoutBtn").addEventListener("click", logoutUser);
   $("detailBackBtn").addEventListener("click", () => navigateTo("market"));
+  $("myProductsPublishBtn").addEventListener("click", () => navigateTo("publish"));
+  $("emptyPublishBtn").addEventListener("click", () => navigateTo("publish"));
+  $("emptyBrowseBtn").addEventListener("click", () => navigateTo("market"));
+  $("editProductForm").addEventListener("submit", submitProductEdit);
+  $("editProductCancel").addEventListener("click", () => $("editProductDialog").close());
+  $("editProductDialog").addEventListener("close", () => {
+    state.editingProductId = "";
+    $("editProductStatus").textContent = "";
+  });
+  document.querySelectorAll("[data-product-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.myProductFilter = button.dataset.productStatus;
+      document.querySelectorAll("[data-product-status]").forEach((item) => {
+        const active = item === button;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-selected", String(active));
+      });
+      renderMyProducts();
+    });
+  });
+  document.querySelectorAll("[data-transaction-role]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.transactionRole = button.dataset.transactionRole;
+      updateTransactionTabs();
+    });
+  });
   $("estimateForm").addEventListener("submit", (event) => {
     event.preventDefault();
     renderEstimate();

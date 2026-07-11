@@ -837,6 +837,260 @@ label {
   opacity: 0.58;
 }
 
+.detail-trade-note {
+  display: grid;
+  place-items: center;
+  min-height: 52px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  color: var(--muted);
+  background: var(--panel-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.detail-trade-note.own {
+  color: #4e5b07;
+  border-color: var(--lime-deep);
+  background: var(--lime-2);
+}
+
+.detail-trade-note.error {
+  color: #8b2d24;
+  border-color: #df8b7e;
+  background: #fff0eb;
+}
+
+.workspace-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+  padding: 30px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.workspace-head > div {
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-head p:last-child {
+  max-width: 720px;
+  color: var(--muted);
+}
+
+.workspace-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.workspace-tabs button {
+  padding: 9px 16px;
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--panel);
+  box-shadow: none;
+  font-size: 14px;
+}
+
+.workspace-tabs button:hover,
+.workspace-tabs button.active {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--ink);
+}
+
+.workspace-tabs button.active {
+  color: #f7f7f0;
+  background: var(--ink);
+}
+
+.workspace-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 44px 24px;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-lg);
+  color: var(--muted);
+  background: var(--panel-2);
+  text-align: center;
+}
+
+.workspace-empty strong {
+  color: var(--ink);
+  font-size: 22px;
+}
+
+.managed-product-grid,
+.transaction-list {
+  display: grid;
+  gap: 16px;
+}
+
+.managed-product-card,
+.transaction-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.managed-product-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.managed-product-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  border-radius: 18px;
+  cursor: pointer;
+}
+
+.managed-product-main:focus-visible {
+  outline: 4px solid rgba(214, 255, 69, 0.72);
+  outline-offset: 4px;
+}
+
+.managed-product-main img {
+  display: block;
+  width: 180px;
+  height: 132px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  object-fit: cover;
+  background: var(--blue);
+}
+
+.managed-product-copy,
+.transaction-copy {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.managed-product-title,
+.transaction-title-row,
+.managed-product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+}
+
+.managed-product-title > span:last-child,
+.transaction-title-row > span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.managed-product-copy p,
+.transaction-copy p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.managed-product-meta {
+  justify-content: space-between;
+}
+
+.managed-product-meta strong,
+.transaction-copy > strong {
+  color: #4e5b07;
+  font-family: "Sora", sans-serif;
+  font-size: 22px;
+}
+
+.managed-product-meta span {
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.managed-product-actions,
+.transaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.danger-button {
+  color: #7a2c22;
+  border-color: #d88a7e;
+  background: #ffe1d8;
+  box-shadow: none;
+}
+
+.danger-button:hover {
+  transform: none;
+  border-color: #7a2c22;
+  background: #ffd1c5;
+  box-shadow: none;
+}
+
+.status-badge {
+  width: max-content;
+  padding: 5px 10px;
+  border: 1px solid rgba(21, 25, 15, 0.16);
+  border-radius: 999px;
+  color: #4e5b07;
+  background: var(--lime-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-badge.reserved,
+.status-badge.pending {
+  color: #755113;
+  background: #fff0bd;
+}
+
+.status-badge.sold,
+.status-badge.finished {
+  color: #24503c;
+  background: #d9f3e4;
+}
+
+.status-badge.offline,
+.status-badge.cancelled {
+  color: #65675f;
+  background: #ecebe4;
+}
+
+.transaction-card {
+  grid-template-columns: 128px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.transaction-card > img {
+  display: block;
+  width: 128px;
+  height: 96px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  object-fit: cover;
+  background: var(--blue);
+}
+
 .tab-button,
 .ghost-button,
 .prompt-chips button {
@@ -1363,6 +1617,61 @@ label {
   min-width: 112px;
 }
 
+.form-dialog,
+.confirm-dialog {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 22px;
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop-lg);
+}
+
+.form-dialog::backdrop,
+.confirm-dialog::backdrop {
+  background: rgba(20, 24, 15, 0.52);
+}
+
+.form-dialog form {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+}
+
+.dialog-heading {
+  display: grid;
+  gap: 8px;
+}
+
+.dialog-heading h2 {
+  font-size: 30px;
+}
+
+.dialog-status {
+  min-height: 22px;
+  color: #8b2d24;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.confirm-dialog {
+  padding: 28px;
+}
+
+.confirm-dialog p {
+  margin-bottom: 22px;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
 @keyframes page-in {
   from {
     opacity: 0;
@@ -1422,6 +1731,14 @@ label {
 
   .platform-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .managed-product-card {
+    grid-template-columns: 1fr;
+  }
+
+  .managed-product-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -1491,6 +1808,45 @@ label {
     .seller-card,
     .detail-actions {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-head,
+  .managed-product-main,
+  .transaction-card {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-head {
+    display: grid;
+    align-items: start;
+  }
+
+  .workspace-head > button {
+    width: 100%;
+  }
+
+  .managed-product-main img,
+  .transaction-card > img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 5 / 3;
+  }
+
+  .managed-product-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .transaction-actions,
+  .dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .transaction-actions button,
+  .dialog-actions button {
+    width: 100%;
   }
 
   .detail-media,

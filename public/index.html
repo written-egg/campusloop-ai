@@ -25,6 +25,8 @@
         <a href="#authenticity" data-route="authenticity">真伪识别</a>
         <a href="#publish" data-route="publish">发布商品</a>
         <a href="#search" data-route="search">精准匹配</a>
+        <a id="myProductsNav" href="#my-products" data-route="my-products" hidden>我的商品</a>
+        <a id="myTransactionsNav" href="#my-transactions" data-route="my-transactions" hidden>我的交易</a>
       </nav>
 
       <div class="header-actions">
@@ -259,6 +261,52 @@
         <div id="searchResults" class="result-list"></div>
       </section>
 
+      <section class="page" id="page-my-products" data-title="我的商品" data-kicker="卖家商品管理">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">卖家工作区</p>
+            <h2>管理我发布的商品</h2>
+            <p>商品状态以 SQL Server 返回结果为准，编辑和下架成功后会重新读取列表。</p>
+          </div>
+          <button id="myProductsPublishBtn" type="button">发布新商品</button>
+        </section>
+        <div id="myProductFilters" class="workspace-tabs" role="tablist" aria-label="商品状态筛选">
+          <button class="active" type="button" data-product-status="all" role="tab" aria-selected="true">全部</button>
+          <button type="button" data-product-status="on_sale" role="tab" aria-selected="false">在售</button>
+          <button type="button" data-product-status="reserved" role="tab" aria-selected="false">已预订</button>
+          <button type="button" data-product-status="sold" role="tab" aria-selected="false">已售出</button>
+          <button type="button" data-product-status="offline" role="tab" aria-selected="false">已下架</button>
+        </div>
+        <div id="myProductsStatus" class="page-state loading" role="status" aria-live="polite">正在加载我的商品...</div>
+        <div id="myProductsEmpty" class="workspace-empty" hidden>
+          <strong>还没有符合条件的商品</strong>
+          <p>发布第一件校园好物，或切换其他状态查看。</p>
+          <button id="emptyPublishBtn" type="button">去发布商品</button>
+        </div>
+        <div id="myProductsGrid" class="managed-product-grid"></div>
+      </section>
+
+      <section class="page" id="page-my-transactions" data-title="我的交易" data-kicker="买卖进度管理">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">交易工作区</p>
+            <h2>查看我参与的交易</h2>
+            <p>交易完成或取消后，页面会重新获取交易和商品状态，不在浏览器本地伪造结果。</p>
+          </div>
+        </section>
+        <div id="transactionRoleTabs" class="workspace-tabs" role="tablist" aria-label="交易角色筛选">
+          <button class="active" type="button" data-transaction-role="buyer" role="tab" aria-selected="true">我买到的</button>
+          <button type="button" data-transaction-role="seller" role="tab" aria-selected="false">我卖出的</button>
+        </div>
+        <div id="transactionsStatus" class="page-state loading" role="status" aria-live="polite">正在加载我的交易...</div>
+        <div id="transactionsEmpty" class="workspace-empty" hidden>
+          <strong>当前页签还没有交易</strong>
+          <p>预订商品或出售商品后，相关交易会显示在这里。</p>
+          <button id="emptyBrowseBtn" type="button">浏览商品</button>
+        </div>
+        <div id="transactionsList" class="transaction-list"></div>
+      </section>
+
       <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
         <section class="login-layout">
           <div class="login-hero">
@@ -325,7 +373,32 @@
       <button id="successDialogConfirm" type="button">确认</button>
     </dialog>
 
+    <dialog id="editProductDialog" class="form-dialog" aria-labelledby="editProductTitle">
+      <form id="editProductForm" novalidate>
+        <div class="dialog-heading">
+          <p class="kicker">编辑在售商品</p>
+          <h2 id="editProductTitle">修改商品信息</h2>
+        </div>
+        <label>商品名称<input id="editProductName" maxlength="120" required /></label>
+        <label>商品描述<textarea id="editProductDescription" maxlength="800" rows="5"></textarea></label>
+        <label>商品价格<input id="editProductPrice" type="number" min="0.01" step="0.01" required /></label>
+        <small id="editProductStatus" class="dialog-status" role="status" aria-live="polite"></small>
+        <div class="dialog-actions">
+          <button id="editProductCancel" class="ghost-button" type="button">取消</button>
+          <button id="editProductSubmit" type="submit">保存修改</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmDialogMessage">
+      <p id="confirmDialogMessage">确认执行此操作吗？</p>
+      <div class="dialog-actions">
+        <button id="confirmDialogCancel" class="ghost-button" type="button">取消</button>
+        <button id="confirmDialogSubmit" type="button">确认</button>
+      </div>
+    </dialog>
+
     <script src="/search-matching.js?v=20260711-precise-search"></script>
-    <script src="/app.js?v=20260711-precise-search"></script>
+    <script src="/app.js?v=20260711-marketplace-ui"></script>
   </body>
 </html>
