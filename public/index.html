@@ -27,6 +27,9 @@
         <a href="#search" data-route="search">精准匹配</a>
         <a id="myProductsNav" href="#my-products" data-route="my-products" hidden>我的商品</a>
         <a id="myTransactionsNav" href="#my-transactions" data-route="my-transactions" hidden>我的交易</a>
+        <a id="myFavoritesNav" href="#my-favorites" data-route="my-favorites" hidden>我的收藏</a>
+        <a id="messagesNav" href="#messages" data-route="messages" hidden>消息</a>
+        <a id="aiHistoryNav" href="#ai-history" data-route="ai-history" hidden>AI 记录</a>
       </nav>
 
       <div class="header-actions">
@@ -288,6 +291,89 @@
         <div id="transactionsList" class="transaction-list"></div>
       </section>
 
+      <section class="page" id="page-my-favorites" data-title="我的收藏" data-kicker="校园好物收藏夹">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">收藏夹</p>
+            <h2>留住值得再看的校园好物</h2>
+            <p>收藏状态以后端返回为准。已售出或已下架的商品仍会保留在这里，但不能继续预订。</p>
+          </div>
+          <button id="favoritesBrowseBtn" type="button">继续浏览</button>
+        </section>
+        <div id="favoritesStatus" class="page-state loading" role="status" aria-live="polite">正在加载我的收藏...</div>
+        <div id="favoritesEmpty" class="workspace-empty" hidden>
+          <strong>收藏夹还是空的</strong>
+          <p>浏览商品详情，遇到喜欢的商品就先收藏起来。</p>
+          <button id="favoritesEmptyBrowseBtn" type="button">浏览商品</button>
+        </div>
+        <div id="favoritesGrid" class="favorite-grid"></div>
+      </section>
+
+      <section class="page" id="page-messages" data-title="站内消息" data-kicker="围绕商品安心沟通">
+        <section class="workspace-head message-workspace-head">
+          <div>
+            <p class="kicker">站内消息</p>
+            <h2>和买卖双方保持联系</h2>
+            <p>每段会话都绑定商品与对方账号，消息发送成功后使用后端返回记录更新。</p>
+          </div>
+          <button id="messagesRefreshBtn" class="ghost-button" type="button">刷新会话</button>
+        </section>
+        <div id="messagesStatus" class="page-state loading" role="status" aria-live="polite">正在加载会话...</div>
+        <section id="messagesWorkspace" class="messages-workspace" hidden>
+          <aside id="conversationPanel" class="conversation-panel" aria-label="会话列表">
+            <div class="message-panel-title">
+              <div><span>会话列表</span><strong id="conversationCount">0 个会话</strong></div>
+            </div>
+            <div id="conversationEmpty" class="message-empty" hidden>暂时没有站内消息。</div>
+            <div id="conversationList" class="conversation-list"></div>
+          </aside>
+          <section id="messageThreadPanel" class="message-thread-panel" aria-label="消息记录">
+            <button id="messagesBackBtn" class="ghost-button messages-back" type="button">← 返回会话</button>
+            <div id="messageThreadEmpty" class="message-thread-empty">
+              <strong>选择一段会话</strong>
+              <p>从左侧选择商品和联系人，即可查看消息记录。</p>
+            </div>
+            <div id="activeMessageThread" hidden>
+              <header class="message-thread-head">
+                <img id="messageProductImage" alt="会话商品图" />
+                <div><span id="messagePeerName">校园同学</span><strong id="messageProductName">商品</strong></div>
+              </header>
+              <div id="messageList" class="message-list" aria-live="polite"></div>
+              <form id="messageForm" class="message-form" novalidate>
+                <label for="messageInput">发送消息</label>
+                <textarea id="messageInput" rows="3" maxlength="1000" placeholder="询问成色、配件或约定当面验货..." required></textarea>
+                <div class="message-form-footer">
+                  <span id="messageInputCount">0 / 1000</span>
+                  <button id="messageSendBtn" type="submit">发送</button>
+                </div>
+                <small id="messageSendStatus" role="status" aria-live="polite"></small>
+              </form>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section class="page" id="page-ai-history" data-title="AI 记录" data-kicker="估价与风险评估档案">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">AI 历史记录</p>
+            <h2>回看每一次估价与风险判断</h2>
+            <p>记录仅来自当前登录账号，清楚标注 DeepSeek 与本地回退结果。</p>
+          </div>
+        </section>
+        <div id="aiHistoryTabs" class="workspace-tabs" role="tablist" aria-label="AI 报告类型筛选">
+          <button class="active" type="button" data-ai-report-type="all" role="tab" aria-selected="true">全部</button>
+          <button type="button" data-ai-report-type="price" role="tab" aria-selected="false">智能估价</button>
+          <button type="button" data-ai-report-type="risk" role="tab" aria-selected="false">风险评估</button>
+        </div>
+        <div id="aiHistoryStatus" class="page-state loading" role="status" aria-live="polite">正在加载 AI 记录...</div>
+        <div id="aiHistoryEmpty" class="workspace-empty" hidden>
+          <strong>当前类型还没有 AI 记录</strong>
+          <p>完成智能估价或真伪风险评估后，SQL Server 中的记录会显示在这里。</p>
+        </div>
+        <div id="aiHistoryList" class="ai-history-list"></div>
+      </section>
+
       <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
         <section class="login-layout">
           <div class="tool-card account-card">
@@ -378,6 +464,6 @@
     </dialog>
 
     <script src="/search-matching.js?v=20260711-precise-search"></script>
-    <script src="/app.js?v=20260711-marketplace-ui"></script>
+    <script src="/app.js?v=20260712-social-ai-ui"></script>
   </body>
 </html>

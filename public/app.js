@@ -18,6 +18,22 @@ const state = {
   transactionsError: "",
   transactionRole: "buyer",
   editingProductId: "",
+  favorites: [],
+  favoritesLoaded: false,
+  favoritesError: "",
+  conversations: [],
+  conversationsLoaded: false,
+  conversationsError: "",
+  activeConversation: null,
+  activeMessages: [],
+  messageThreadLoading: false,
+  messageSending: false,
+  pendingConversation: null,
+  mobileThreadOpen: false,
+  aiReports: [],
+  aiReportsLoaded: false,
+  aiReportsError: "",
+  aiReportType: "all",
   recognition: null,
   listing: null,
   latestPrice: null,
@@ -83,6 +99,9 @@ const routes = {
   detail: "page-detail",
   "my-products": "page-my-products",
   "my-transactions": "page-my-transactions",
+  "my-favorites": "page-my-favorites",
+  messages: "page-messages",
+  "ai-history": "page-ai-history",
   estimate: "page-estimate",
   authenticity: "page-authenticity",
   publish: "page-publish",
@@ -149,6 +168,17 @@ async function patchJson(url, body, headers = {}) {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body)
+    },
+    12000
+  );
+}
+
+async function deleteJson(url, headers = {}) {
+  return requestJson(
+    url,
+    {
+      method: "DELETE",
+      headers
     },
     12000
   );
@@ -284,6 +314,22 @@ function resetMarketplaceState() {
   state.transactionsError = "";
   state.transactionRole = "buyer";
   state.editingProductId = "";
+  state.favorites = [];
+  state.favoritesLoaded = false;
+  state.favoritesError = "";
+  state.conversations = [];
+  state.conversationsLoaded = false;
+  state.conversationsError = "";
+  state.activeConversation = null;
+  state.activeMessages = [];
+  state.messageThreadLoading = false;
+  state.messageSending = false;
+  state.pendingConversation = null;
+  state.mobileThreadOpen = false;
+  state.aiReports = [];
+  state.aiReportsLoaded = false;
+  state.aiReportsError = "";
+  state.aiReportType = "all";
 }
 
 function persistSession(account) {
@@ -324,7 +370,7 @@ function clearSession() {
 
 function setRoute(routeName) {
   let route = routes[routeName] ? routeName : "market";
-  const protectedRoutes = new Set(["publish", "my-products", "my-transactions"]);
+  const protectedRoutes = new Set(["publish", "my-products", "my-transactions", "my-favorites", "messages", "ai-history"]);
   if (protectedRoutes.has(route) && !hasAuthenticatedSession()) {
     route = "login";
     $("loginStatus").textContent = "请先登录，再使用商品管理和交易功能。";
@@ -340,9 +386,22 @@ function setRoute(routeName) {
         if (state.activeRoute === "detail") renderProductDetail(state.selectedProductId);
       });
     }
+    if (hasAuthenticatedSession() && !state.favoritesLoaded) {
+      refreshFavorites({ quiet: true }).then(() => {
+        if (state.activeRoute === "detail") renderProductDetail(state.selectedProductId);
+      });
+    }
+    if (hasAuthenticatedSession() && !state.conversationsLoaded) {
+      refreshConversations({ quiet: true }).then(() => {
+        if (state.activeRoute === "detail") renderProductDetail(state.selectedProductId);
+      });
+    }
   }
   if (route === "my-products") refreshMyProducts();
   if (route === "my-transactions") refreshTransactions();
+  if (route === "my-favorites") refreshFavorites();
+  if (route === "messages") refreshConversations();
+  if (route === "ai-history") refreshAIHistory();
   return route;
 }
 
@@ -457,6 +516,9 @@ function renderCurrentUser() {
   $("logoutBtn").hidden = !loggedIn;
   $("myProductsNav").hidden = !loggedIn;
   $("myTransactionsNav").hidden = !loggedIn;
+  $("myFavoritesNav").hidden = !loggedIn;
+  $("messagesNav").hidden = !loggedIn;
+  $("aiHistoryNav").hidden = !loggedIn;
   if (loggedIn) $("saveStatus").textContent = `当前卖家：${state.currentUser.name}`;
 }
 
@@ -940,6 +1002,355 @@ function updateTransactionTabs() {
   renderTransactions();
 }
 
+function isFavorite(productId) {
+  return state.favorites.some((item) => String(item.id) === String(productId));
+}
+
+function renderFavorites() {
+  const favorites = state.favorites;
+  $("favoritesEmpty").hidden = favorites.length > 0;
+  $("favoritesGrid").innerHTML = favorites.map((item) => `
+    <article class="favorite-card">
+      <img src="${escapeText(item.image || imageFallbackFor(item.category))}" alt="${escapeText(item.name)}" data-fallback="${escapeText(imageFallbackFor(item.category))}">
+      <div class="favorite-copy">
+        <div class="favorite-heading">
+          <span class="status-badge ${escapeText(item.status)}">${escapeText(statusLabel(item.status))}</span>
+          <span>收藏于 ${escapeText(formatDate(item.favoritedAt))}</span>
+        </div>
+        <h3>${escapeText(item.name)}</h3>
+        <strong>${money(item.price)}</strong>
+        <p>${escapeText(item.condition || "成色待补充")} · ${escapeText(item.sellerName || "校园同学")} · ${escapeText(item.campus || "校内")}</p>
+      </div>
+      <div class="favorite-actions">
+        <button class="ghost-button" type="button" data-favorite-view="${escapeText(item.id)}">查看详情</button>
+        <button class="danger-button" type="button" data-favorite-remove="${escapeText(item.id)}">取消收藏</button>
+      </div>
+    </article>
+  `).join("");
+
+  document.querySelectorAll(".favorite-card img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
+  document.querySelectorAll("[data-favorite-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const product = state.favorites.find((item) => String(item.id) === button.dataset.favoriteView);
+      if (product) state.products = [product, ...state.products.filter((item) => String(item.id) !== String(product.id))];
+      openProductDetail(button.dataset.favoriteView);
+    });
+  });
+  document.querySelectorAll("[data-favorite-remove]").forEach((button) => {
+    button.addEventListener("click", () => toggleFavorite(button.dataset.favoriteRemove, button));
+  });
+}
+
+async function refreshFavorites({ quiet = false } = {}) {
+  if (!hasAuthenticatedSession()) return false;
+  if (!quiet) setWorkspaceStatus("favoritesStatus", "正在加载我的收藏...", "loading");
+  try {
+    const response = await getJson("/api/my/favorites", authHeaders());
+    state.favorites = Array.isArray(response.data) ? response.data : [];
+    state.favoritesLoaded = true;
+    state.favoritesError = "";
+    setWorkspaceStatus("favoritesStatus");
+    renderFavorites();
+    return true;
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return false;
+    state.favorites = [];
+    state.favoritesLoaded = false;
+    state.favoritesError = marketplaceErrorMessage(error, "收藏列表加载失败，请稍后重试。");
+    renderFavorites();
+    if (!quiet || state.activeRoute === "my-favorites") setWorkspaceStatus("favoritesStatus", state.favoritesError, "error");
+    return false;
+  }
+}
+
+async function toggleFavorite(productId, button) {
+  if (!hasAuthenticatedSession()) {
+    $("loginStatus").textContent = "请先登录，再收藏商品。";
+    navigateTo("login");
+    return;
+  }
+  const removing = isFavorite(productId);
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "处理中...";
+  try {
+    if (removing) await deleteJson(`/api/products/${encodeURIComponent(productId)}/favorite`, authHeaders());
+    else await postJson(`/api/products/${encodeURIComponent(productId)}/favorite`, {}, authHeaders());
+    await refreshFavorites({ quiet: true });
+    if (state.activeRoute === "detail") renderProductDetail(productId);
+    if (state.activeRoute === "my-favorites") setWorkspaceStatus("favoritesStatus", removing ? "已取消收藏。" : "收藏成功。", "success");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    const statusId = state.activeRoute === "my-favorites" ? "favoritesStatus" : "detailStatus";
+    setWorkspaceStatus(statusId, marketplaceErrorMessage(error, removing ? "取消收藏失败，请稍后重试。" : "收藏失败，请稍后重试。"), "error");
+    if (error?.status === 409 || error?.status === 404) await refreshFavorites({ quiet: true });
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+function conversationKey(item) {
+  return `${item?.productId || ""}:${item?.peerId || ""}`;
+}
+
+function visibleConversations() {
+  const conversations = [...state.conversations];
+  if (state.pendingConversation && !conversations.some((item) => conversationKey(item) === conversationKey(state.pendingConversation))) {
+    conversations.unshift(state.pendingConversation);
+  }
+  return conversations;
+}
+
+function renderConversations() {
+  const conversations = visibleConversations();
+  $("messagesWorkspace").hidden = false;
+  $("conversationCount").textContent = `${conversations.length} 个会话`;
+  $("conversationEmpty").hidden = conversations.length > 0;
+  $("conversationList").innerHTML = conversations.map((item) => {
+    const active = conversationKey(item) === conversationKey(state.activeConversation);
+    return `
+      <button class="conversation-item${active ? " active" : ""}" type="button" data-conversation-key="${escapeText(conversationKey(item))}">
+        <img src="${escapeText(item.productImage || imageFallbackFor("消息商品"))}" alt="${escapeText(item.productName || "商品")}" data-fallback="${escapeText(imageFallbackFor("消息商品"))}">
+        <span class="conversation-copy">
+          <span class="conversation-title"><strong>${escapeText(item.productName || "商品")}</strong>${Number(item.unreadCount || 0) ? `<b>${Number(item.unreadCount)}</b>` : ""}</span>
+          <span>${escapeText(item.peerName || "校园同学")}</span>
+          <small>${escapeText(item.lastMessage || "开始一段关于商品的对话")}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
+  document.querySelectorAll(".conversation-item img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
+    });
+  });
+  document.querySelectorAll("[data-conversation-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const conversation = visibleConversations().find((item) => conversationKey(item) === button.dataset.conversationKey);
+      if (conversation) selectConversation(conversation);
+    });
+  });
+  renderMessageThread();
+}
+
+function renderMessageThread() {
+  const active = state.activeConversation;
+  $("messageThreadEmpty").hidden = Boolean(active);
+  $("activeMessageThread").hidden = !active;
+  $("messagesWorkspace").classList.toggle("thread-open", state.mobileThreadOpen && Boolean(active));
+  if (!active) return;
+  $("messagePeerName").textContent = active.peerName || "校园同学";
+  $("messageProductName").textContent = active.productName || "商品";
+  $("messageProductImage").src = active.productImage || imageFallbackFor("消息商品");
+  $("messageProductImage").onerror = () => { $("messageProductImage").src = imageFallbackFor("消息商品"); };
+  if (state.messageThreadLoading) {
+    $("messageList").innerHTML = '<div class="message-thread-notice">正在加载消息...</div>';
+    return;
+  }
+  if (!state.activeMessages.length) {
+    $("messageList").innerHTML = '<div class="message-thread-notice">还没有消息，发一条友好的问候吧。</div>';
+    return;
+  }
+  $("messageList").innerHTML = state.activeMessages.map((message) => {
+    const mine = String(message.senderId) === String(state.currentUser.id);
+    return `
+      <div class="message-bubble-row ${mine ? "mine" : "peer"}">
+        <div class="message-bubble">
+          <span>${escapeText(mine ? "我" : (message.senderName || active.peerName || "对方"))}</span>
+          <p>${escapeText(message.content)}</p>
+          <time>${escapeText(formatDate(message.createdAt))}${mine ? (message.isRead ? " · 已读" : " · 已发送") : ""}</time>
+        </div>
+      </div>
+    `;
+  }).join("");
+  $("messageList").scrollTop = $("messageList").scrollHeight;
+}
+
+async function refreshConversations({ quiet = false } = {}) {
+  if (!hasAuthenticatedSession()) return false;
+  if (!quiet) setWorkspaceStatus("messagesStatus", "正在加载会话...", "loading");
+  try {
+    const response = await getJson("/api/my/conversations", authHeaders());
+    state.conversations = Array.isArray(response.data) ? response.data : [];
+    state.conversationsLoaded = true;
+    state.conversationsError = "";
+    setWorkspaceStatus("messagesStatus");
+    if (state.activeConversation) {
+      state.activeConversation = visibleConversations().find((item) => conversationKey(item) === conversationKey(state.activeConversation)) || state.activeConversation;
+    }
+    renderConversations();
+    return true;
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return false;
+    state.conversations = [];
+    state.conversationsLoaded = false;
+    state.conversationsError = marketplaceErrorMessage(error, "会话列表加载失败，请稍后重试。");
+    $("messagesWorkspace").hidden = true;
+    if (!quiet || state.activeRoute === "messages") setWorkspaceStatus("messagesStatus", state.conversationsError, "error");
+    return false;
+  }
+}
+
+async function selectConversation(conversation) {
+  state.activeConversation = conversation;
+  state.activeMessages = [];
+  state.messageThreadLoading = true;
+  state.mobileThreadOpen = true;
+  $("messageSendStatus").textContent = "";
+  renderConversations();
+  try {
+    const query = new URLSearchParams({ productId: conversation.productId, peerId: conversation.peerId });
+    const response = await getJson(`/api/messages?${query}`, authHeaders());
+    state.activeMessages = Array.isArray(response.data) ? response.data : [];
+    const unread = state.activeMessages.filter((message) => !message.isRead && String(message.receiverId) === String(state.currentUser.id));
+    const results = await Promise.allSettled(unread.map((message) => patchJson(`/api/messages/${encodeURIComponent(message.id)}/read`, {}, authHeaders())));
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") unread[index].isRead = true;
+    });
+    const stored = state.conversations.find((item) => conversationKey(item) === conversationKey(conversation));
+    if (stored) stored.unreadCount = 0;
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    $("messageSendStatus").textContent = marketplaceErrorMessage(error, "消息加载失败，请稍后重试。");
+  } finally {
+    state.messageThreadLoading = false;
+    renderConversations();
+  }
+}
+
+function contactSeller(product) {
+  if (!hasAuthenticatedSession()) {
+    $("loginStatus").textContent = "请先登录，再联系卖家。";
+    navigateTo("login");
+    return;
+  }
+  const existing = state.conversations.find((item) => String(item.productId) === String(product.id));
+  const peerId = product.sellerId || existing?.peerId;
+  if (!peerId) {
+    setWorkspaceStatus("detailStatus", "暂时无法发起新会话：商品接口未返回卖家账号标识，请联系 A 补充 sellerId 字段。", "error");
+    return;
+  }
+  if (String(peerId) === String(state.currentUser.id)) {
+    setWorkspaceStatus("detailStatus", "不能给自己发布的商品发送消息。", "warning");
+    return;
+  }
+  state.pendingConversation = existing || {
+    id: `${product.id}:${peerId}`,
+    productId: product.id,
+    productName: product.name,
+    productImage: product.image || "",
+    peerId,
+    peerName: product.sellerName || "卖家",
+    lastMessage: "",
+    unreadCount: 0
+  };
+  state.activeConversation = state.pendingConversation;
+  state.mobileThreadOpen = true;
+  navigateTo("messages");
+  selectConversation(state.pendingConversation);
+}
+
+async function sendMessage(event) {
+  event.preventDefault();
+  if (state.messageSending || !state.activeConversation) return;
+  const content = $("messageInput").value.trim();
+  if (!content) {
+    $("messageSendStatus").textContent = "消息不能为空。";
+    return;
+  }
+  if (content.length > 1000) {
+    $("messageSendStatus").textContent = "消息不能超过 1000 个字符。";
+    return;
+  }
+  state.messageSending = true;
+  $("messageSendBtn").disabled = true;
+  $("messageSendBtn").textContent = "发送中...";
+  $("messageSendStatus").textContent = "正在发送...";
+  try {
+    const response = await postJson("/api/messages", {
+      productId: state.activeConversation.productId,
+      receiverId: state.activeConversation.peerId,
+      content
+    }, authHeaders());
+    state.activeMessages.push(response.data);
+    $("messageInput").value = "";
+    $("messageInputCount").textContent = "0 / 1000";
+    $("messageSendStatus").textContent = "发送成功。";
+    state.pendingConversation = null;
+    renderMessageThread();
+    await refreshConversations({ quiet: true });
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    $("messageSendStatus").textContent = marketplaceErrorMessage(error, "发送失败，请稍后重试。");
+  } finally {
+    state.messageSending = false;
+    $("messageSendBtn").disabled = false;
+    $("messageSendBtn").textContent = "发送";
+  }
+}
+
+function providerLabel(provider) {
+  if (provider === "deepseek") return "DeepSeek";
+  if (provider === "local-fallback") return "本地回退";
+  return provider || "未知来源";
+}
+
+function riskLevelLabel(level) {
+  return { low: "低风险", medium: "中等风险", high: "高风险" }[level] || level || "待判断";
+}
+
+function renderAIHistory() {
+  $("aiHistoryEmpty").hidden = state.aiReports.length > 0;
+  $("aiHistoryList").innerHTML = state.aiReports.map((report) => {
+    const result = report.result || {};
+    const priceSummary = report.type === "price"
+      ? `<div class="ai-report-metrics"><div><span>建议价</span><strong>${money(result.suggested)}</strong></div><div><span>价格区间</span><strong>${money(result.min)} - ${money(result.max)}</strong></div></div>`
+      : `<div class="ai-report-metrics"><div><span>风险等级</span><strong>${escapeText(riskLevelLabel(result.riskLevel))}</strong></div><div><span>结论</span><strong>${escapeText(result.verdict || "暂无结论")}</strong></div></div>`;
+    const suggestions = report.type === "price" ? result.reasons : result.findings;
+    return `
+      <article class="ai-report-card">
+        <header>
+          <div><span class="ai-report-type ${escapeText(report.type)}">${report.type === "price" ? "智能估价" : "风险评估"}</span><span class="provider-badge ${report.provider === "deepseek" ? "deepseek" : "fallback"}">${escapeText(providerLabel(report.provider))}</span></div>
+          <time>${escapeText(formatDate(report.createdAt))}</time>
+        </header>
+        <div class="ai-report-title"><div><span>${escapeText(report.productName || "未关联具体商品")}</span><strong>${report.score == null ? "暂无评分" : `${Math.round(Number(report.score))} 分`}</strong></div></div>
+        ${priceSummary}
+        ${Array.isArray(suggestions) && suggestions.length ? `<ul>${suggestions.slice(0, 3).map((item) => `<li>${escapeText(item)}</li>`).join("")}</ul>` : ""}
+        <details><summary>展开完整结果</summary><pre>${escapeText(JSON.stringify(result, null, 2))}</pre></details>
+      </article>
+    `;
+  }).join("");
+}
+
+async function refreshAIHistory({ quiet = false } = {}) {
+  if (!hasAuthenticatedSession()) return false;
+  if (!quiet) setWorkspaceStatus("aiHistoryStatus", "正在加载 AI 记录...", "loading");
+  try {
+    const response = await getJson(`/api/my/ai-reports?type=${encodeURIComponent(state.aiReportType)}`, authHeaders());
+    state.aiReports = Array.isArray(response.data) ? response.data : [];
+    state.aiReportsLoaded = true;
+    state.aiReportsError = "";
+    setWorkspaceStatus("aiHistoryStatus");
+    renderAIHistory();
+    return true;
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return false;
+    state.aiReports = [];
+    state.aiReportsLoaded = false;
+    state.aiReportsError = marketplaceErrorMessage(error, "AI 历史加载失败，请稍后重试。");
+    renderAIHistory();
+    if (!quiet || state.activeRoute === "ai-history") setWorkspaceStatus("aiHistoryStatus", state.aiReportsError, "error");
+    return false;
+  }
+}
+
 function renderProductDetail(id) {
   const status = $("detailStatus");
   const content = $("detailContent");
@@ -975,6 +1386,27 @@ function renderProductDetail(id) {
     tradeControl = `<button id="reserveProductBtn" type="button" data-reserve-id="${escapeText(product.id)}">立即预订</button>`;
   } else {
     tradeControl = `<p class="detail-trade-note">商品当前状态为“${escapeText(statusLabel(productStatus))}”，暂不可预订。</p>`;
+  }
+  let favoriteControl = "";
+  if (!hasAuthenticatedSession()) {
+    favoriteControl = '<button id="detailLoginToFavorite" class="ghost-button" type="button">收藏</button>';
+  } else if (!state.myProductsLoaded || !state.favoritesLoaded) {
+    favoriteControl = '<button class="ghost-button" type="button" disabled>正在确认收藏状态...</button>';
+  } else if (isOwnProduct) {
+    favoriteControl = '<button class="ghost-button" type="button" disabled title="不能收藏自己的商品">自己的商品</button>';
+  } else {
+    const favorited = isFavorite(product.id);
+    favoriteControl = `<button id="favoriteProductBtn" class="ghost-button${favorited ? " selected" : ""}" type="button" data-favorite-id="${escapeText(product.id)}">${favorited ? "取消收藏" : "收藏"}</button>`;
+  }
+  let contactControl = "";
+  if (!hasAuthenticatedSession()) {
+    contactControl = '<button id="detailLoginToMessage" class="ghost-button" type="button">联系卖家</button>';
+  } else if (!state.myProductsLoaded) {
+    contactControl = '<button class="ghost-button" type="button" disabled>正在确认卖家...</button>';
+  } else if (isOwnProduct) {
+    contactControl = '<button class="ghost-button" type="button" disabled title="不能联系自己">这是我的商品</button>';
+  } else {
+    contactControl = `<button id="contactSellerBtn" class="ghost-button" type="button" data-contact-id="${escapeText(product.id)}">联系卖家</button>`;
   }
   status.hidden = true;
   content.hidden = false;
@@ -1015,8 +1447,8 @@ function renderProductDetail(id) {
         </div>
       </section>
       <div class="detail-actions" aria-label="商品操作">
-        <button type="button" disabled title="收藏功能后续开发">收藏</button>
-        <button type="button" disabled title="消息功能后续开发">联系卖家</button>
+        ${favoriteControl}
+        ${contactControl}
         ${tradeControl}
       </div>
     </div>
@@ -1026,6 +1458,16 @@ function renderProductDetail(id) {
     if (image.src !== image.dataset.fallback) image.src = image.dataset.fallback;
   });
   $("reserveProductBtn")?.addEventListener("click", (event) => reserveProduct(event.currentTarget.dataset.reserveId, event.currentTarget));
+  $("favoriteProductBtn")?.addEventListener("click", (event) => toggleFavorite(event.currentTarget.dataset.favoriteId, event.currentTarget));
+  $("contactSellerBtn")?.addEventListener("click", () => contactSeller(product));
+  $("detailLoginToFavorite")?.addEventListener("click", () => {
+    $("loginStatus").textContent = "请先登录，再收藏商品。";
+    navigateTo("login");
+  });
+  $("detailLoginToMessage")?.addEventListener("click", () => {
+    $("loginStatus").textContent = "请先登录，再联系卖家。";
+    navigateTo("login");
+  });
   $("detailLoginToReserve")?.addEventListener("click", () => {
     $("loginStatus").textContent = "请先登录，再预订商品。";
     navigateTo("login");
@@ -1134,8 +1576,9 @@ async function renderEstimate() {
       model: $("estimateModel").value.trim(),
       condition: $("estimateCondition").value,
       accessory: $("estimateAccessory").value,
+      userExternalId: state.currentUser?.id || null,
       localEstimate: localPrice
-    });
+    }, authHeaders());
     const price = response.data || localPrice;
     $("estimatePrice").textContent = money(price.suggested);
     $("estimateRange").textContent = `建议区间 ${money(price.min)} - ${money(price.max)} · ${price.provider === "deepseek" ? "DeepSeek AI" : "本地模型"}`;
@@ -1474,8 +1917,9 @@ async function runAuthenticityCheck() {
       serialProvided: serial.length >= 8,
       description,
       estimatedPrice: estimate.suggested,
+      userExternalId: state.currentUser?.id || null,
       localAssessment
-    });
+    }, authHeaders());
     const assessment = response.data || localAssessment;
     $("authScore").textContent = `${Math.round(Number(assessment.score) || 0)}%`;
     $("authVerdict").textContent = `${assessment.verdict} · ${assessment.provider === "deepseek" ? "DeepSeek AI" : "本地模型"}`;
@@ -1599,6 +2043,18 @@ function setupEvents() {
   $("myProductsPublishBtn").addEventListener("click", () => navigateTo("publish"));
   $("emptyPublishBtn").addEventListener("click", () => navigateTo("publish"));
   $("emptyBrowseBtn").addEventListener("click", () => navigateTo("market"));
+  $("favoritesBrowseBtn").addEventListener("click", () => navigateTo("market"));
+  $("favoritesEmptyBrowseBtn").addEventListener("click", () => navigateTo("market"));
+  $("messagesRefreshBtn").addEventListener("click", () => refreshConversations());
+  $("messagesBackBtn").addEventListener("click", () => {
+    state.mobileThreadOpen = false;
+    renderMessageThread();
+  });
+  $("messageForm").addEventListener("submit", sendMessage);
+  $("messageInput").addEventListener("input", () => {
+    $("messageInputCount").textContent = `${$("messageInput").value.length} / 1000`;
+    if ($("messageSendStatus").textContent === "消息不能为空。") $("messageSendStatus").textContent = "";
+  });
   $("editProductForm").addEventListener("submit", submitProductEdit);
   $("editProductCancel").addEventListener("click", () => $("editProductDialog").close());
   $("editProductDialog").addEventListener("close", () => {
@@ -1620,6 +2076,17 @@ function setupEvents() {
     button.addEventListener("click", () => {
       state.transactionRole = button.dataset.transactionRole;
       updateTransactionTabs();
+    });
+  });
+  document.querySelectorAll("[data-ai-report-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.aiReportType = button.dataset.aiReportType;
+      document.querySelectorAll("[data-ai-report-type]").forEach((item) => {
+        const active = item === button;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-selected", String(active));
+      });
+      refreshAIHistory();
     });
   });
   $("estimateForm").addEventListener("submit", (event) => {
