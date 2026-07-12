@@ -1120,16 +1120,31 @@ function renderPrice(price) {
   $("priceReason").innerHTML = price.reasons.map((item) => `<div>${escapeText(item)}</div>`).join("");
 }
 
-function renderEstimate() {
-  const price = estimatePriceFrom({
+async function renderEstimate() {
+  const localPrice = estimatePriceFrom({
     category: $("estimateCategory").value,
     model: $("estimateModel").value,
     condition: $("estimateCondition").value,
     accessory: $("estimateAccessory").value
   });
-  $("estimatePrice").textContent = money(price.suggested);
-  $("estimateRange").textContent = `建议区间 ${money(price.min)} - ${money(price.max)}`;
-  $("estimateReasons").innerHTML = price.reasons.map((item) => `<div>${escapeText(item)}</div>`).join("");
+  $("estimatePrice").textContent = "AI 分析中...";
+  try {
+    const response = await postJson("/api/ai/estimate", {
+      category: $("estimateCategory").value,
+      model: $("estimateModel").value.trim(),
+      condition: $("estimateCondition").value,
+      accessory: $("estimateAccessory").value,
+      localEstimate: localPrice
+    });
+    const price = response.data || localPrice;
+    $("estimatePrice").textContent = money(price.suggested);
+    $("estimateRange").textContent = `建议区间 ${money(price.min)} - ${money(price.max)} · ${price.provider === "deepseek" ? "DeepSeek AI" : "本地模型"}`;
+    $("estimateReasons").innerHTML = (price.reasons || localPrice.reasons).map((item) => `<div>${escapeText(item)}</div>`).join("");
+  } catch (error) {
+    $("estimatePrice").textContent = money(localPrice.suggested);
+    $("estimateRange").textContent = `建议区间 ${money(localPrice.min)} - ${money(localPrice.max)} · 本地模型`;
+    $("estimateReasons").innerHTML = [...localPrice.reasons, apiErrorMessage(error, "AI 暂不可用，已使用本地估价。")].map((item) => `<div>${escapeText(item)}</div>`).join("");
+  }
 }
 
 function runRiskCheck(listing, price) {
@@ -1400,7 +1415,7 @@ async function semanticSearch() {
   renderSearchMatches(query, SearchMatching.rankProducts(query, intent, state.products));
 }
 
-function runAuthenticityCheck() {
+async function runAuthenticityCheck() {
   const category = $("authCategory").value;
   const model = $("authModel").value.trim();
   const price = Number($("authPrice").value) || 0;
@@ -1449,9 +1464,27 @@ function runAuthenticityCheck() {
   score = Math.max(12, Math.min(96, score));
   const verdict = score >= 82 ? "可信度较高，仍建议当面验货" : score >= 62 ? "中等可信，需要补充证明" : "风险偏高，谨慎交易";
 
-  $("authScore").textContent = `${score}%`;
-  $("authVerdict").textContent = verdict;
-  $("authFindings").innerHTML = findings.map((item) => `<div>${escapeText(item)}</div>`).join("");
+  const localAssessment = { score, verdict, findings };
+  $("authScore").textContent = "AI 分析中...";
+  try {
+    const response = await postJson("/api/ai/authenticity-risk", {
+      category,
+      model,
+      price,
+      serialProvided: serial.length >= 8,
+      description,
+      estimatedPrice: estimate.suggested,
+      localAssessment
+    });
+    const assessment = response.data || localAssessment;
+    $("authScore").textContent = `${Math.round(Number(assessment.score) || 0)}%`;
+    $("authVerdict").textContent = `${assessment.verdict} · ${assessment.provider === "deepseek" ? "DeepSeek AI" : "本地模型"}`;
+    $("authFindings").innerHTML = (assessment.findings || findings).map((item) => `<div>${escapeText(item)}</div>`).join("");
+  } catch (error) {
+    $("authScore").textContent = `${score}%`;
+    $("authVerdict").textContent = `${verdict} · 本地模型`;
+    $("authFindings").innerHTML = [...findings, apiErrorMessage(error, "AI 暂不可用，已使用本地风险评估。")].map((item) => `<div>${escapeText(item)}</div>`).join("");
+  }
 }
 
 function fileToCompressedDataUrl(file, maxSize = 1200, quality = 0.78) {
@@ -1595,7 +1628,6 @@ function setupEvents() {
   });
   ["estimateCategory", "estimateModel", "estimateCondition", "estimateAccessory"].forEach((id) => {
     $(id).addEventListener("change", renderEstimate);
-    $(id).addEventListener("input", renderEstimate);
   });
   $("authCheckBtn").addEventListener("click", runAuthenticityCheck);
   $("generateBtn").addEventListener("click", generateListing);
@@ -1661,7 +1693,6 @@ async function init() {
   await refreshProducts();
   setupEvents();
   renderEstimate();
-  runAuthenticityCheck();
   state.recognition = recognizeFromForm();
   renderRecognition(state.recognition);
   state.latestPrice = estimatePriceFrom(state.recognition);

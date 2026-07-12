@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260710-account-detail" />
+    <link rel="stylesheet" href="/styles.css?v=20260712-login-layout" />
   </head>
   <body>
     <header class="site-header">
@@ -66,25 +66,6 @@
             <div class="device-price">¥ 9,680</div>
             <b class="floating-note orange">预计 3 天成交</b>
             <b class="floating-note lime">AI 置信度 91%</b>
-          </div>
-        </section>
-
-        <section class="platform-strip" aria-label="平台能力概览">
-          <div>
-            <strong>8</strong>
-            <span>精选商品样例</span>
-          </div>
-          <div>
-            <strong>4</strong>
-            <span>校园交易品类</span>
-          </div>
-          <div>
-            <strong>SQL</strong>
-            <span>后续接入 SQL Server</span>
-          </div>
-          <div>
-            <strong>AI</strong>
-            <span>估价 / 验真 / 匹配</span>
           </div>
         </section>
 
@@ -146,11 +127,11 @@
         </section>
       </section>
 
-      <section class="page" id="page-authenticity" data-title="真伪识别" data-kicker="图片 + 序列号 + 价格风险">
+      <section class="page" id="page-authenticity" data-title="真伪风险评估" data-kicker="商品信息 + 序列号 + 价格风险">
         <section class="tool-layout">
           <div class="tool-card">
-            <p class="kicker">真伪识别</p>
-            <h2>上传图片，补充序列号和卖家描述，生成可信度与验货清单。</h2>
+            <p class="kicker">真伪风险评估</p>
+            <h2>补充商品信息、序列号和卖家描述，由 AI 生成可信度与验货清单。</h2>
             <div class="auth-grid">
               <label class="auth-image">
                 <img id="authPreview" alt="真伪识别预览" src="https://images.unsplash.com/photo-1603891128711-11b4b03bb138?auto=format&fit=crop&w=900&q=80" />
@@ -309,13 +290,11 @@
 
       <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
         <section class="login-layout">
-          <div class="login-hero">
-            <p class="kicker">校园账户</p>
-            <h2>登录后发布，交易身份更清楚。</h2>
-            <p>账号与密码由后端认证接口校验。会话令牌只保存在当前浏览器会话中，关闭会话后不会继续保留。</p>
-          </div>
-
           <div class="tool-card account-card">
+            <header class="account-heading">
+              <p class="kicker">校园账户</p>
+              <h2>登录 CampusLoop</h2>
+            </header>
             <div class="auth-tabs" role="tablist" aria-label="账户操作">
               <button id="loginTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="loginForm">登录</button>
               <button id="registerTab" type="button" role="tab" aria-selected="false" aria-controls="registerForm">注册</button>

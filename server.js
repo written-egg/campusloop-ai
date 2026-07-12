@@ -31,7 +31,7 @@ function send(res, status, body, type = "application/json; charset=utf-8") {
   res.writeHead(status, {
     "Content-Type": type,
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization"
   });
   if (Buffer.isBuffer(body)) return res.end(body);
@@ -279,7 +279,80 @@ function fallbackCustomerService(message = "", products = []) {
   };
 }
 
+function fallbackEstimate(body = {}) {
+  const local = body.localEstimate || {};
+  const suggested = Math.max(1, Number(local.suggested) || 0);
+  return {
+    provider: "local-fallback",
+    suggested,
+    min: Math.max(1, Number(local.min) || suggested * 0.9),
+    max: Math.max(1, Number(local.max) || suggested * 1.1),
+    confidence: 65,
+    reasons: Array.isArray(local.reasons) ? local.reasons.slice(0, 4) : ["基于本地型号参数和成交样本计算"]
+  };
+}
+
+function fallbackAuthenticity(body = {}) {
+  const local = body.localAssessment || {};
+  return {
+    provider: "local-fallback",
+    score: Math.max(0, Math.min(100, Number(local.score) || 50)),
+    verdict: local.verdict || "需要补充凭证并当面验货",
+    riskLevel: Number(local.score) >= 82 ? "low" : Number(local.score) >= 62 ? "medium" : "high",
+    findings: Array.isArray(local.findings) ? local.findings.slice(0, 6) : ["当前仅能进行规则风险评估"]
+  };
+}
+
 const apiHandlers = {
+  "/api/ai/estimate": async (body) => {
+    const schema = '{"suggested":number,"min":number,"max":number,"confidence":number,"reasons":string[]}';
+    const prompt = [
+      "请结合商品信息、本地参数估值和近期成交样本，给出人民币二手建议价。不要编造不存在的成交数据。",
+      `输入：${JSON.stringify(body)}`,
+      "价格必须为正数，min <= suggested <= max；reasons 给出2至4条简短依据。"
+    ].join("\n");
+    const aiResult = await callDeepSeek([{ role: "user", content: prompt }], schema);
+    const result = aiResult ? { ...aiResult, provider: "deepseek" } : fallbackEstimate(body);
+    if (sqlStore.isSqlEnabled()) {
+      const saved = await sqlStore.saveAIReport({
+        userExternalId: body.userExternalId,
+        productExternalId: body.productExternalId,
+        reportType: "price",
+        provider: result.provider,
+        score: result.confidence,
+        result
+      });
+      return { ...result, ...saved, storage: "sql-server" };
+    }
+    return result;
+  },
+  "/api/ai/authenticity-risk": async (body) => {
+    const schema = '{"score":number,"verdict":string,"riskLevel":"low"|"medium"|"high","findings":string[]}';
+    const prompt = [
+      "你是二手商品验货风险助手，不得声称已经鉴定真伪，也不得声称已查询品牌官方数据库。",
+      "请根据型号、报价、序列号是否提供、卖家描述和本地估价，评估风险并给出核验建议。",
+      `输入：${JSON.stringify(body)}`,
+      "score为0到100的可信度；findings给出3至6条可执行建议。"
+    ].join("\n");
+    const aiResult = await callDeepSeek([{ role: "user", content: prompt }], schema);
+    const result = aiResult ? { ...aiResult, provider: "deepseek" } : fallbackAuthenticity(body);
+    if (sqlStore.isSqlEnabled()) {
+      const saved = await sqlStore.saveAIReport({
+        userExternalId: body.userExternalId,
+        productExternalId: body.productExternalId,
+        reportType: "risk",
+        provider: result.provider,
+        score: result.score,
+        result,
+        risk: {
+          level: result.riskLevel,
+          message: result.verdict || result.findings?.[0]
+        }
+      });
+      return { ...result, ...saved, storage: "sql-server" };
+    }
+    return result;
+  },
   "/api/generate-listing": async (body) => {
     const schema = '{"title":string,"description":string,"sellingPoints":string[]}';
     const prompt = `根据商品信息生成校园二手发布文案：${JSON.stringify(body)}`;
@@ -386,10 +459,14 @@ http
     const offShelfMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)\/off-shelf$/);
     const reserveMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/reserve$/);
     const transactionActionMatch = url.pathname.match(/^\/api\/transactions\/(\d+)\/(finish|cancel)$/);
+    const favoriteMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/favorite$/);
+    const messageReadMatch = url.pathname.match(/^\/api\/messages\/(\d+)\/read$/);
     const isMarketplaceApi =
-      (req.method === "GET" && (url.pathname === "/api/my/products" || url.pathname === "/api/my/transactions")) ||
+      (req.method === "GET" && ["/api/my/products", "/api/my/transactions", "/api/my/favorites", "/api/my/conversations", "/api/messages", "/api/my/ai-reports"].includes(url.pathname)) ||
       (req.method === "PATCH" && Boolean(ownProductMatch)) ||
-      (req.method === "POST" && Boolean(offShelfMatch || reserveMatch || transactionActionMatch));
+      (req.method === "PATCH" && Boolean(messageReadMatch)) ||
+      (req.method === "POST" && (url.pathname === "/api/messages" || Boolean(offShelfMatch || reserveMatch || transactionActionMatch || favoriteMatch))) ||
+      (req.method === "DELETE" && Boolean(favoriteMatch));
 
     if (isMarketplaceApi) {
       try {
@@ -399,8 +476,24 @@ http
           data = await sqlStore.listProductsByOwner(userId);
         } else if (req.method === "GET" && url.pathname === "/api/my/transactions") {
           data = await sqlStore.listTransactionsForUser(userId);
+        } else if (req.method === "GET" && url.pathname === "/api/my/favorites") {
+          data = await sqlStore.listFavorites(userId);
+        } else if (req.method === "GET" && url.pathname === "/api/my/conversations") {
+          data = await sqlStore.listConversations(userId);
+        } else if (req.method === "GET" && url.pathname === "/api/messages") {
+          data = await sqlStore.listMessages(userId, url.searchParams.get("productId"), url.searchParams.get("peerId"));
+        } else if (req.method === "GET" && url.pathname === "/api/my/ai-reports") {
+          data = await sqlStore.listAIReports(userId, url.searchParams.get("type") || "all");
         } else if (req.method === "PATCH" && ownProductMatch) {
           data = await sqlStore.updateOwnProduct(userId, decodeURIComponent(ownProductMatch[1]), await readBody(req));
+        } else if (req.method === "PATCH" && messageReadMatch) {
+          data = await sqlStore.markMessageRead(userId, Number(messageReadMatch[1]));
+        } else if (req.method === "POST" && url.pathname === "/api/messages") {
+          data = await sqlStore.sendMessage(userId, await readBody(req));
+        } else if (favoriteMatch && req.method === "POST") {
+          data = await sqlStore.addFavorite(userId, decodeURIComponent(favoriteMatch[1]));
+        } else if (favoriteMatch && req.method === "DELETE") {
+          data = await sqlStore.removeFavorite(userId, decodeURIComponent(favoriteMatch[1]));
         } else if (offShelfMatch) {
           data = await sqlStore.takeOwnProductOffline(userId, decodeURIComponent(offShelfMatch[1]));
         } else if (reserveMatch) {
@@ -423,6 +516,7 @@ http
         body = await readBody(req);
         const session = readSession(req);
         if (url.pathname === "/api/products") body.authenticatedUserId = session?.userId || null;
+        if (url.pathname.startsWith("/api/ai/")) body.userExternalId = session?.userId || null;
         if (url.pathname === "/api/auth/logout") body.sessionToken = session?.token || null;
         let data = await apiHandlers[url.pathname](body);
         if (url.pathname === "/api/auth/register" || url.pathname === "/api/auth/login") {
@@ -434,7 +528,11 @@ http
           return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Save failed" });
         }
         const fallback =
-          url.pathname === "/api/generate-listing"
+          url.pathname === "/api/ai/estimate"
+            ? fallbackEstimate(body)
+            : url.pathname === "/api/ai/authenticity-risk"
+              ? fallbackAuthenticity(body)
+              : url.pathname === "/api/generate-listing"
             ? fallbackListing(body)
             : url.pathname === "/api/extract-attributes"
               ? fallbackAttributes(body.rawText)

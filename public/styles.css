@@ -374,35 +374,6 @@ label {
   font-weight: 600;
 }
 
-.platform-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.platform-strip div {
-  display: grid;
-  gap: 4px;
-  padding: 18px 20px;
-  border: 2px solid var(--line);
-  border-radius: 22px;
-  background: rgba(255, 253, 246, 0.82);
-  box-shadow: var(--shadow-card);
-}
-
-.platform-strip strong {
-  font-family: "Sora", "Noto Sans SC", sans-serif;
-  font-size: 34px;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.platform-strip span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .hero-device {
   position: relative;
   min-height: 620px;
@@ -521,7 +492,6 @@ label {
 .mini-panel,
 .search-hero,
 .chat-card,
-.login-hero,
 .market-card,
 .result-card {
   border: 2px solid var(--line);
@@ -535,8 +505,7 @@ label {
 .report-card,
 .mini-panel,
 .search-hero,
-.chat-card,
-.login-hero {
+.chat-card {
   padding: 30px;
 }
 
@@ -1436,35 +1405,27 @@ label {
 }
 
 .login-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-  gap: 24px;
-}
-
-.login-hero {
-  min-height: 420px;
-  align-content: center;
-  display: grid;
-  gap: 18px;
-  color: var(--ink);
-  background: linear-gradient(150deg, var(--lime), var(--lime-deep));
-  border-color: var(--ink);
-}
-
-.login-hero .kicker {
-  color: #3f4a06;
-}
-
-.login-hero p {
-  max-width: 620px;
-  color: #3f4a06;
-  font-size: 17px;
-  line-height: 1.7;
+  width: min(100%, 560px);
+  margin: 0 auto;
 }
 
 .account-card {
   display: grid;
-  gap: 18px;
+  gap: 20px;
+  padding: 34px;
+}
+
+.account-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.account-heading .kicker {
+  margin: 0;
+}
+
+.account-heading h2 {
+  font-size: clamp(28px, 4vw, 38px);
 }
 
 .auth-tabs {
@@ -1729,10 +1690,6 @@ label {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .platform-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .managed-product-card {
     grid-template-columns: 1fr;
   }
@@ -1795,7 +1752,6 @@ label {
   }
 
   .market-grid,
-  .platform-strip,
   .field-grid,
   .field-row,
   .publish-grid,
