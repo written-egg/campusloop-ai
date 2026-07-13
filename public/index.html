@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260713-risk-card" />
+    <link rel="stylesheet" href="/styles.css?v=20260713-transaction-workflow" />
   </head>
   <body>
     <header class="site-header">
@@ -282,7 +282,7 @@
           <div>
             <p class="kicker">交易工作区</p>
             <h2>查看我参与的交易</h2>
-            <p>交易完成或取消后，页面会重新获取交易和商品状态，不在浏览器本地伪造结果。</p>
+            <p>每次操作完成后会自动同步最新进度，买卖双方都能清楚看到当前交易状态。</p>
           </div>
         </section>
         <div id="transactionRoleTabs" class="workspace-tabs" role="tablist" aria-label="交易角色筛选">
@@ -567,7 +567,25 @@
       </form>
     </dialog>
 
+    <dialog id="disputeDialog" class="form-dialog dispute-dialog" aria-labelledby="disputeDialogTitle">
+      <form id="disputeForm" novalidate>
+        <div class="dialog-heading">
+          <p class="kicker">交易争议</p>
+          <h2 id="disputeDialogTitle">说明需要协助的问题</h2>
+        </div>
+        <p>交易商品：<strong id="disputeProductName">当前交易</strong></p>
+        <label>争议原因
+          <textarea id="disputeReasonInput" maxlength="500" rows="6" placeholder="请具体说明商品、价格或当面交易中遇到的问题" required></textarea>
+        </label>
+        <div class="dispute-form-meta"><small id="disputeReasonCount">0 / 500</small><small id="disputeStatus" class="dialog-status" role="status" aria-live="polite"></small></div>
+        <div class="dialog-actions">
+          <button id="disputeCancelBtn" class="ghost-button" type="button">取消</button>
+          <button id="disputeSubmitBtn" type="submit">提交争议</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="/search-matching.js?v=20260711-precise-search"></script>
-    <script src="/app.js?v=20260713-user-copy"></script>
+    <script src="/app.js?v=20260713-transaction-workflow"></script>
   </body>
 </html>
