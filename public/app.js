@@ -1654,7 +1654,7 @@ function runRiskCheck(listing, price) {
     findings.push({ level: "low", name: "基础检测通过", message: "未命中明显异常价格、站外交易或新号高风险提示。" });
   }
 
-  $("riskBox").innerHTML = findings.map((item) => `<div><strong>${escapeText(item.name)}</strong><br>${escapeText(item.message)}</div>`).join("");
+  $("riskBox").innerHTML = findings.map((item) => `<div><strong>${escapeText(item.name)}</strong><span>${escapeText(item.message)}</span></div>`).join("");
 }
 
 function fallbackListing(input) {
