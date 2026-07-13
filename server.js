@@ -499,7 +499,7 @@ http
     const ownProductMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)$/);
     const offShelfMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)\/off-shelf$/);
     const reserveMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/reserve$/);
-    const transactionActionMatch = url.pathname.match(/^\/api\/transactions\/(\d+)\/(finish|cancel)$/);
+    const transactionActionMatch = url.pathname.match(/^\/api\/transactions\/(\d+)\/(confirm|finish|cancel|dispute)$/);
     const favoriteMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/favorite$/);
     const messageReadMatch = url.pathname.match(/^\/api\/messages\/(\d+)\/read$/);
     const isMarketplaceApi =
@@ -540,10 +540,12 @@ http
         } else if (reserveMatch) {
           data = await sqlStore.reserveProduct(userId, decodeURIComponent(reserveMatch[1]));
         } else if (transactionActionMatch) {
+          const transactionActions = { confirm: "confirmed", finish: "finished", cancel: "cancelled", dispute: "disputed" };
           data = await sqlStore.updateTransactionStatus(
             userId,
             Number(transactionActionMatch[1]),
-            transactionActionMatch[2] === "finish" ? "finished" : "cancelled"
+            transactionActions[transactionActionMatch[2]],
+            await readBody(req)
           );
         }
         return send(res, 200, { ok: true, data, error: null, storage: "sql-server" });

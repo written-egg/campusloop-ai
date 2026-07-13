@@ -18,6 +18,7 @@
     "migrate:product-description": "node tools/run-sql-file.js database/migrations/003_product_description_view.sql",
     "migrate:admin": "node tools/run-sql-file.js database/migrations/004_admin_moderation.sql",
     "migrate:account": "node tools/run-sql-file.js database/migrations/005_account_management.sql"
+    ,"migrate:transactions": "node tools/run-sql-file.js database/migrations/006_transaction_workflow.sql"
   },
   "engines": {
     "node": ">=18"

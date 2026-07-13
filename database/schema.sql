@@ -100,12 +100,16 @@ CREATE TABLE dbo.Transactions (
     FinalPrice DECIMAL(10,2) NOT NULL,
     TradeStatus NVARCHAR(20) NOT NULL CONSTRAINT DF_Transactions_TradeStatus DEFAULT N'pending',
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Transactions_CreatedAt DEFAULT SYSUTCDATETIME(),
+    ConfirmedAt DATETIME2(0) NULL,
     FinishedAt DATETIME2(0) NULL,
+    CancelledAt DATETIME2(0) NULL,
+    DisputedAt DATETIME2(0) NULL,
+    DisputeReason NVARCHAR(500) NULL,
     CONSTRAINT FK_Transactions_Products FOREIGN KEY (ProductId) REFERENCES dbo.Products(ProductId),
     CONSTRAINT FK_Transactions_Buyer FOREIGN KEY (BuyerId) REFERENCES dbo.Users(UserId),
     CONSTRAINT FK_Transactions_Seller FOREIGN KEY (SellerId) REFERENCES dbo.Users(UserId),
     CONSTRAINT CK_Transactions_FinalPrice CHECK (FinalPrice >= 0),
-    CONSTRAINT CK_Transactions_TradeStatus CHECK (TradeStatus IN (N'pending', N'paid', N'finished', N'cancelled', N'disputed'))
+    CONSTRAINT CK_Transactions_TradeStatus CHECK (TradeStatus IN (N'pending', N'confirmed', N'finished', N'cancelled', N'disputed'))
 );
 GO
 
@@ -422,7 +426,10 @@ BEGIN
     WHERE i.TradeStatus IN (N'finished', N'cancelled');
 
     UPDATE t
-    SET FinishedAt = CASE WHEN i.TradeStatus = N'finished' THEN SYSUTCDATETIME() ELSE t.FinishedAt END
+    SET ConfirmedAt = CASE WHEN i.TradeStatus=N'confirmed' AND t.ConfirmedAt IS NULL THEN SYSUTCDATETIME() ELSE t.ConfirmedAt END,
+        FinishedAt = CASE WHEN i.TradeStatus=N'finished' AND t.FinishedAt IS NULL THEN SYSUTCDATETIME() ELSE t.FinishedAt END,
+        CancelledAt = CASE WHEN i.TradeStatus=N'cancelled' AND t.CancelledAt IS NULL THEN SYSUTCDATETIME() ELSE t.CancelledAt END,
+        DisputedAt = CASE WHEN i.TradeStatus=N'disputed' AND t.DisputedAt IS NULL THEN SYSUTCDATETIME() ELSE t.DisputedAt END
     FROM dbo.Transactions AS t
     INNER JOIN inserted AS i ON i.TransactionId = t.TransactionId;
 END;
