@@ -2147,7 +2147,7 @@ async function submitDeleteAccount(event) {
   }
 }
 
-const ADMIN_USER_STATUS = { active: "正常", disabled: "已禁用" };
+const ADMIN_USER_STATUS = { active: "正常", disabled: "已禁用", deleted: "已注销" };
 const ADMIN_RISK_STATUS = { pending: "待审核", confirmed: "已确认", false_positive: "误报", resolved: "已处理" };
 const ADMIN_RISK_LEVEL = { high: "高", medium: "中", low: "低" };
 
@@ -2178,8 +2178,12 @@ function renderAdminUsers() {
   }
   $("adminUsersList").innerHTML = `<table class="admin-table"><thead><tr><th>用户</th><th>角色 / 状态</th><th>业务数据</th><th>注册时间</th><th>操作</th></tr></thead><tbody>${state.adminUsers.map((user) => {
     const isSelf = String(user.id) === String(state.currentUser.id);
+    const isDeleted = user.accountStatus === "deleted";
     const nextStatus = user.accountStatus === "disabled" ? "active" : "disabled";
-    return `<tr><td><strong>${escapeText(user.name)}</strong><small>${escapeText(user.loginName)} · ${escapeText(user.campus)}</small></td><td><span class="status-chip">${user.role === "admin" ? "管理员" : "普通用户"}</span> <span class="status-chip ${user.accountStatus === "disabled" ? "danger" : ""}">${ADMIN_USER_STATUS[user.accountStatus] || user.accountStatus}</span></td><td><small>商品 ${Number(user.productCount) || 0} · 交易 ${Number(user.transactionCount) || 0} · 风险 ${Number(user.riskCount) || 0}</small></td><td><small>${formatDate(user.createdAt)}</small></td><td><button class="table-action ${nextStatus === "disabled" ? "danger-button" : "ghost-button"}" type="button" data-admin-user-id="${escapeText(user.id)}" data-next-status="${nextStatus}" ${isSelf ? "disabled title=\"不能操作当前管理员账号\"" : ""}>${nextStatus === "disabled" ? "禁用" : "启用"}</button></td></tr>`;
+    const action = isDeleted
+      ? `<small>已注销，不可操作</small>`
+      : `<button class="table-action ${nextStatus === "disabled" ? "danger-button" : "ghost-button"}" type="button" data-admin-user-id="${escapeText(user.id)}" data-next-status="${nextStatus}" ${isSelf ? "disabled title=\"不能操作当前管理员账号\"" : ""}>${nextStatus === "disabled" ? "禁用" : "启用"}</button>`;
+    return `<tr><td><strong>${escapeText(user.name)}</strong><small>${escapeText(user.loginName || "无登录账号")} · ${escapeText(user.campus)}</small></td><td><span class="status-chip">${user.role === "admin" ? "管理员" : "普通用户"}</span> <span class="status-chip ${user.accountStatus === "disabled" || isDeleted ? "danger" : ""}">${ADMIN_USER_STATUS[user.accountStatus] || user.accountStatus}</span></td><td><small>商品 ${Number(user.productCount) || 0} · 交易 ${Number(user.transactionCount) || 0} · 风险 ${Number(user.riskCount) || 0}</small></td><td><small>${formatDate(user.createdAt)}</small></td><td>${action}</td></tr>`;
   }).join("")}</tbody></table>`;
 }
 
