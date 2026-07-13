@@ -2483,6 +2483,7 @@ function setupEvents() {
 }
 
 async function init() {
+  setupEvents();
   setMarketStatus("正在加载商品...", "loading");
   const [categories, transactions, risks] = await Promise.all([
     getJson("/data/category-knowledge.json"),
@@ -2500,7 +2501,6 @@ async function init() {
   renderCurrentUser();
   switchAuthMode("login");
   await refreshProducts();
-  setupEvents();
   renderEstimate();
   state.recognition = recognizeFromForm();
   renderRecognition(state.recognition);
