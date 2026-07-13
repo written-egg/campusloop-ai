@@ -2042,7 +2042,207 @@ label {
   }
 }
 
-@media (max-width: 1160px) {
+.settings-panel {
+  max-width: 780px;
+  margin-top: 24px;
+}
+
+.settings-form,
+.danger-zone,
+.admin-content {
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.settings-form {
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+}
+
+.settings-heading span,
+.danger-zone span {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+
+.settings-heading h3,
+.danger-zone h3 {
+  margin-top: 4px;
+  font-size: 24px;
+}
+
+.settings-form > button {
+  justify-self: start;
+}
+
+.danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 28px;
+  border-color: #b73528;
+}
+
+.danger-zone p {
+  max-width: 560px;
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.danger-button {
+  color: #fff;
+  background: #b73528;
+  border-color: #7f2119;
+}
+
+.admin-head {
+  align-items: end;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 22px;
+  align-items: start;
+}
+
+.admin-sidebar {
+  display: grid;
+  gap: 8px;
+  position: sticky;
+  top: 112px;
+}
+
+.admin-sidebar button {
+  width: 100%;
+  border-radius: 8px;
+  padding: 11px 14px;
+  text-align: left;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+.admin-sidebar button.active {
+  background: var(--lime);
+  box-shadow: 3px 4px 0 var(--ink);
+}
+
+.admin-content {
+  min-width: 0;
+  padding: 20px;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-metric {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.admin-metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-metric strong {
+  display: block;
+  margin-top: 8px;
+  font-family: "Sora", sans-serif;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.admin-filter {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 170px auto;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.admin-filter button {
+  box-shadow: none;
+}
+
+.admin-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.admin-table th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.admin-table td > strong,
+.admin-table td > small {
+  display: block;
+}
+
+.admin-table td > small {
+  max-width: 340px;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.status-chip {
+  display: inline-flex;
+  padding: 3px 8px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--lime-2);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-chip.danger {
+  color: #8d241b;
+  border-color: #b73528;
+  background: #ffe1dc;
+}
+
+.table-action {
+  padding: 7px 12px;
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.workspace-empty.compact {
+  min-height: 240px;
+}
+
+@media (max-width: 1380px) {
   .site-header {
     height: auto;
     grid-template-columns: 1fr;
@@ -2104,6 +2304,10 @@ label {
   .managed-product-actions,
   .favorite-actions {
     justify-content: flex-start;
+  }
+
+  .admin-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2301,6 +2505,30 @@ label {
 
   .section-head {
     display: grid;
+  }
+
+  .danger-zone,
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .danger-zone {
+    display: grid;
+  }
+
+  .danger-zone button,
+  .settings-form > button {
+    width: 100%;
+  }
+
+  .admin-sidebar {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-filter,
+  .admin-metric-grid {
+    grid-template-columns: 1fr;
   }
 }
 

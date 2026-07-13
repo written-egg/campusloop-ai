@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260712-login-layout" />
+    <link rel="stylesheet" href="/styles.css?v=20260713-account-admin-ui" />
   </head>
   <body>
     <header class="site-header">
@@ -30,6 +30,7 @@
         <a id="myFavoritesNav" href="#my-favorites" data-route="my-favorites" hidden>我的收藏</a>
         <a id="messagesNav" href="#messages" data-route="messages" hidden>消息</a>
         <a id="aiHistoryNav" href="#ai-history" data-route="ai-history" hidden>AI 记录</a>
+        <a id="adminNav" href="#admin" data-route="admin" hidden>管理后台</a>
       </nav>
 
       <div class="header-actions">
@@ -374,6 +375,83 @@
         <div id="aiHistoryList" class="ai-history-list"></div>
       </section>
 
+      <section class="page" id="page-account-settings" data-title="账户设置" data-kicker="个人资料与安全">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">账户设置</p>
+            <h2>管理个人资料与账户安全</h2>
+            <p>资料更新后会同步到当前会话；修改密码或注销账户后需要重新登录。</p>
+          </div>
+        </section>
+        <div class="workspace-tabs" role="tablist" aria-label="账户设置分类">
+          <button class="active" type="button" data-account-tab="profile" role="tab" aria-selected="true">个人资料</button>
+          <button type="button" data-account-tab="password" role="tab" aria-selected="false">修改密码</button>
+          <button type="button" data-account-tab="security" role="tab" aria-selected="false">账户安全</button>
+        </div>
+        <div id="accountPageStatus" class="page-state" role="status" aria-live="polite" hidden></div>
+
+        <section id="accountProfilePanel" class="settings-panel">
+          <form id="profileForm" class="settings-form" novalidate>
+            <div class="settings-heading"><span>PROFILE</span><h3>个人资料</h3></div>
+            <label>昵称<input id="profileNameInput" maxlength="50" required /></label>
+            <label>校区<input id="profileCampusInput" maxlength="50" required /></label>
+            <button id="profileSubmitBtn" type="submit">保存资料</button>
+            <small id="profileStatus" class="auth-status" role="status" aria-live="polite"></small>
+          </form>
+        </section>
+
+        <section id="accountPasswordPanel" class="settings-panel" hidden>
+          <form id="passwordForm" class="settings-form" novalidate>
+            <div class="settings-heading"><span>SECURITY</span><h3>修改密码</h3></div>
+            <label>当前密码<input id="currentPasswordInput" type="password" autocomplete="current-password" required /></label>
+            <label>新密码<input id="newPasswordInput" type="password" autocomplete="new-password" minlength="8" placeholder="至少 8 个字符" required /></label>
+            <label>确认新密码<input id="confirmNewPasswordInput" type="password" autocomplete="new-password" minlength="8" required /></label>
+            <button id="passwordSubmitBtn" type="submit">确认修改密码</button>
+            <small id="passwordStatus" class="auth-status" role="status" aria-live="polite"></small>
+          </form>
+        </section>
+
+        <section id="accountSecurityPanel" class="settings-panel" hidden>
+          <div class="danger-zone">
+            <div><span>DANGER ZONE</span><h3>注销账户</h3><p>账户注销后不能恢复。若仍有待处理交易，系统会拒绝注销并提示先完成交易。</p></div>
+            <button id="openDeleteAccountBtn" class="danger-button" type="button">注销我的账户</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="page-admin" data-title="管理后台" data-kicker="平台运营与风险审核">
+        <section class="workspace-head admin-head">
+          <div><p class="kicker">管理员工作台</p><h2>平台运营与风险审核</h2><p>集中查看用户、商品、风险记录和管理员操作日志。</p></div>
+          <button id="adminRefreshBtn" class="ghost-button" type="button">刷新当前数据</button>
+        </section>
+        <div id="adminPageStatus" class="page-state" role="status" aria-live="polite" hidden></div>
+        <div class="admin-layout">
+          <nav class="admin-sidebar" aria-label="管理后台分类">
+            <button class="active" type="button" data-admin-tab="overview">数据概览</button>
+            <button type="button" data-admin-tab="users">用户管理</button>
+            <button type="button" data-admin-tab="products">商品管理</button>
+            <button type="button" data-admin-tab="risks">风险审核</button>
+            <button type="button" data-admin-tab="logs">操作日志</button>
+          </nav>
+          <div class="admin-content">
+            <section id="adminOverviewPanel" class="admin-panel"><div id="adminOverviewGrid" class="admin-metric-grid"></div></section>
+            <section id="adminUsersPanel" class="admin-panel" hidden>
+              <form id="adminUsersFilter" class="admin-filter"><input id="adminUserQuery" placeholder="搜索账号、昵称或校区" /><select id="adminUserStatus"><option value="">全部状态</option><option value="active">正常</option><option value="disabled">已禁用</option><option value="deleted">已注销</option></select><button type="submit">查询</button></form>
+              <div id="adminUsersList" class="admin-table-wrap"></div>
+            </section>
+            <section id="adminProductsPanel" class="admin-panel" hidden>
+              <form id="adminProductsFilter" class="admin-filter"><input id="adminProductQuery" placeholder="搜索商品或卖家" /><select id="adminProductStatus"><option value="">全部状态</option><option value="on_sale">在售</option><option value="reserved">已预订</option><option value="sold">已售出</option><option value="offline">已下架</option></select><button type="submit">查询</button></form>
+              <div id="adminProductsList" class="admin-table-wrap"></div>
+            </section>
+            <section id="adminRisksPanel" class="admin-panel" hidden>
+              <form id="adminRisksFilter" class="admin-filter"><select id="adminRiskStatus"><option value="">全部审核状态</option><option value="pending">待审核</option><option value="confirmed">已确认</option><option value="false_positive">误报</option><option value="resolved">已处理</option></select><select id="adminRiskLevel"><option value="">全部风险等级</option><option value="high">高风险</option><option value="medium">中风险</option><option value="low">低风险</option></select><button type="submit">查询</button></form>
+              <div id="adminRisksList" class="admin-table-wrap"></div>
+            </section>
+            <section id="adminLogsPanel" class="admin-panel" hidden><div id="adminLogsList" class="admin-table-wrap"></div></section>
+          </div>
+        </div>
+      </section>
+
       <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
         <section class="login-layout">
           <div class="tool-card account-card">
@@ -463,7 +541,28 @@
       </div>
     </dialog>
 
+    <dialog id="deleteAccountDialog" class="form-dialog" aria-labelledby="deleteAccountTitle">
+      <form id="deleteAccountForm" novalidate>
+        <div class="dialog-heading"><p class="kicker">最终确认</p><h2 id="deleteAccountTitle">输入密码注销账户</h2></div>
+        <p>此操作不可恢复。系统确认没有待处理交易后才会完成注销。</p>
+        <label>当前密码<input id="deleteAccountPassword" type="password" autocomplete="current-password" required /></label>
+        <small id="deleteAccountStatus" class="dialog-status" role="status" aria-live="polite"></small>
+        <div class="dialog-actions"><button id="deleteAccountCancel" class="ghost-button" type="button">取消</button><button id="deleteAccountSubmit" class="danger-button" type="submit">确认注销</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="adminActionDialog" class="form-dialog" aria-labelledby="adminActionTitle">
+      <form id="adminActionForm" novalidate>
+        <div class="dialog-heading"><p class="kicker">管理员操作</p><h2 id="adminActionTitle">确认操作</h2></div>
+        <p id="adminActionDescription"></p>
+        <label id="adminReviewStatusField" hidden>审核结论<select id="adminReviewStatus"><option value="confirmed">确认风险</option><option value="false_positive">标记误报</option><option value="resolved">已处理</option></select></label>
+        <label><span id="adminActionReasonLabel">操作原因</span><textarea id="adminActionReason" maxlength="500" rows="4" required></textarea></label>
+        <small id="adminActionStatus" class="dialog-status" role="status" aria-live="polite"></small>
+        <div class="dialog-actions"><button id="adminActionCancel" class="ghost-button" type="button">取消</button><button id="adminActionSubmit" type="submit">确认提交</button></div>
+      </form>
+    </dialog>
+
     <script src="/search-matching.js?v=20260711-precise-search"></script>
-    <script src="/app.js?v=20260712-social-ai-ui"></script>
+    <script src="/app.js?v=20260713-account-admin-ui"></script>
   </body>
 </html>

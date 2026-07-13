@@ -34,6 +34,14 @@ const state = {
   aiReportsLoaded: false,
   aiReportsError: "",
   aiReportType: "all",
+  accountTab: "profile",
+  adminTab: "overview",
+  adminOverview: null,
+  adminUsers: [],
+  adminProducts: [],
+  adminRisks: [],
+  adminLogs: [],
+  adminAction: null,
   recognition: null,
   listing: null,
   latestPrice: null,
@@ -106,6 +114,8 @@ const routes = {
   authenticity: "page-authenticity",
   publish: "page-publish",
   search: "page-search",
+  "account-settings": "page-account-settings",
+  admin: "page-admin",
   login: "page-login"
 };
 
@@ -179,6 +189,18 @@ async function deleteJson(url, headers = {}) {
     {
       method: "DELETE",
       headers
+    },
+    12000
+  );
+}
+
+async function deleteJsonWithBody(url, body, headers = {}) {
+  return requestJson(
+    url,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body)
     },
     12000
   );
@@ -330,6 +352,14 @@ function resetMarketplaceState() {
   state.aiReportsLoaded = false;
   state.aiReportsError = "";
   state.aiReportType = "all";
+  state.accountTab = "profile";
+  state.adminTab = "overview";
+  state.adminOverview = null;
+  state.adminUsers = [];
+  state.adminProducts = [];
+  state.adminRisks = [];
+  state.adminLogs = [];
+  state.adminAction = null;
 }
 
 function persistSession(account) {
@@ -370,10 +400,14 @@ function clearSession() {
 
 function setRoute(routeName) {
   let route = routes[routeName] ? routeName : "market";
-  const protectedRoutes = new Set(["publish", "my-products", "my-transactions", "my-favorites", "messages", "ai-history"]);
+  const protectedRoutes = new Set(["publish", "my-products", "my-transactions", "my-favorites", "messages", "ai-history", "account-settings", "admin"]);
   if (protectedRoutes.has(route) && !hasAuthenticatedSession()) {
     route = "login";
     $("loginStatus").textContent = "请先登录，再使用商品管理和交易功能。";
+  }
+  if (route === "admin" && state.currentUser?.role !== "admin") {
+    route = "account-settings";
+    setTimeout(() => setWorkspaceStatus("accountPageStatus", "无权访问管理后台：当前账号不是管理员。", "error"), 0);
   }
   state.activeRoute = route;
   document.querySelectorAll(".page").forEach((page) => page.classList.remove("active"));
@@ -402,6 +436,8 @@ function setRoute(routeName) {
   if (route === "my-favorites") refreshFavorites();
   if (route === "messages") refreshConversations();
   if (route === "ai-history") refreshAIHistory();
+  if (route === "account-settings") renderAccountSettings();
+  if (route === "admin") refreshAdminSection();
   return route;
 }
 
@@ -512,13 +548,16 @@ function renderCurrentUser() {
   $("currentUserText").textContent = loggedIn
     ? `${state.currentUser.name} · ${state.currentUser.campus} · 信用 ${state.currentUser.trustScore}`
     : "未登录";
-  $("accountAction").textContent = loggedIn ? state.currentUser.name || "个人中心" : "登录";
+  $("accountAction").textContent = loggedIn ? state.currentUser.name || "账户设置" : "登录";
+  $("accountAction").dataset.route = loggedIn ? "account-settings" : "login";
+  $("accountAction").setAttribute("href", loggedIn ? "#account-settings" : "#login");
   $("logoutBtn").hidden = !loggedIn;
   $("myProductsNav").hidden = !loggedIn;
   $("myTransactionsNav").hidden = !loggedIn;
   $("myFavoritesNav").hidden = !loggedIn;
   $("messagesNav").hidden = !loggedIn;
   $("aiHistoryNav").hidden = !loggedIn;
+  $("adminNav").hidden = !loggedIn || state.currentUser.role !== "admin";
   if (loggedIn) $("saveStatus").textContent = `当前卖家：${state.currentUser.name}`;
 }
 
@@ -708,6 +747,10 @@ function handleExpiredMarketplaceSession(error) {
   $("loginStatus").textContent = "登录已失效，请重新登录。";
   navigateTo("login");
   return true;
+}
+
+function isPasswordRejection(error) {
+  return error?.status === 401 && /密码/.test(error.message || "");
 }
 
 function openManagedProductDetail(id) {
@@ -1982,6 +2025,269 @@ async function getUploadImageSrc(imageId, fallbackCategory) {
   return imageFallbackFor(fallbackCategory);
 }
 
+function switchAccountTab(tab) {
+  const next = ["profile", "password", "security"].includes(tab) ? tab : "profile";
+  state.accountTab = next;
+  document.querySelectorAll("[data-account-tab]").forEach((button) => {
+    const active = button.dataset.accountTab === next;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("accountProfilePanel").hidden = next !== "profile";
+  $("accountPasswordPanel").hidden = next !== "password";
+  $("accountSecurityPanel").hidden = next !== "security";
+}
+
+function renderAccountSettings() {
+  if (!hasAuthenticatedSession()) return;
+  $("profileNameInput").value = state.currentUser.name || "";
+  $("profileCampusInput").value = state.currentUser.campus || "";
+  switchAccountTab(state.accountTab);
+}
+
+async function submitProfile(event) {
+  event.preventDefault();
+  const name = $("profileNameInput").value.trim();
+  const campus = $("profileCampusInput").value.trim();
+  if (!name || !campus) {
+    $("profileStatus").textContent = "昵称和校区不能为空。";
+    return;
+  }
+  const button = $("profileSubmitBtn");
+  button.disabled = true;
+  $("profileStatus").textContent = "正在保存...";
+  try {
+    const response = await patchJson("/api/account/profile", { name, campus }, authHeaders());
+    state.currentUser = { ...state.currentUser, ...response.data };
+    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(state.currentUser));
+    renderCurrentUser();
+    $("profileStatus").textContent = "资料已同步到服务器。";
+    await showSuccessDialog("资料修改成功");
+  } catch (error) {
+    if (!handleExpiredMarketplaceSession(error)) $("profileStatus").textContent = `保存失败：${marketplaceErrorMessage(error)}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function submitPassword(event) {
+  event.preventDefault();
+  const currentPassword = $("currentPasswordInput").value;
+  const newPassword = $("newPasswordInput").value;
+  const confirmPassword = $("confirmNewPasswordInput").value;
+  if (!currentPassword) {
+    $("passwordStatus").textContent = "请输入当前密码。";
+    return;
+  }
+  if (newPassword.length < 8) {
+    $("passwordStatus").textContent = "新密码至少需要 8 个字符。";
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    $("passwordStatus").textContent = "两次输入的新密码不一致。";
+    return;
+  }
+  const button = $("passwordSubmitBtn");
+  button.disabled = true;
+  $("passwordStatus").textContent = "正在修改密码...";
+  try {
+    await patchJson("/api/account/password", { currentPassword, newPassword }, authHeaders());
+    $("passwordForm").reset();
+    await showSuccessDialog("密码修改成功，请重新登录");
+    clearSession();
+    renderCurrentUser();
+    switchAuthMode("login");
+    $("loginStatus").textContent = "密码已修改，旧会话已失效，请使用新密码登录。";
+    navigateTo("login");
+  } catch (error) {
+    if (isPasswordRejection(error)) {
+      $("passwordStatus").textContent = `修改失败：${apiErrorMessage(error)}`;
+    } else if (!handleExpiredMarketplaceSession(error)) {
+      $("passwordStatus").textContent = `修改失败：${marketplaceErrorMessage(error)}`;
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function openDeleteAccount() {
+  const confirmed = await showConfirmDialog("注销后账户不可恢复。是否继续进行密码验证？", "继续注销");
+  if (!confirmed) return;
+  $("deleteAccountForm").reset();
+  $("deleteAccountStatus").textContent = "";
+  $("deleteAccountDialog").showModal();
+}
+
+async function submitDeleteAccount(event) {
+  event.preventDefault();
+  const password = $("deleteAccountPassword").value;
+  if (!password) {
+    $("deleteAccountStatus").textContent = "请输入当前密码。";
+    return;
+  }
+  const button = $("deleteAccountSubmit");
+  button.disabled = true;
+  $("deleteAccountStatus").textContent = "正在检查账户状态...";
+  try {
+    await deleteJsonWithBody("/api/account", { password }, authHeaders());
+    $("deleteAccountDialog").close();
+    clearSession();
+    renderCurrentUser();
+    switchAuthMode("login");
+    $("loginStatus").textContent = "账户已注销，登录状态已清除。";
+    navigateTo("login");
+  } catch (error) {
+    if (isPasswordRejection(error)) {
+      $("deleteAccountStatus").textContent = `注销失败：${apiErrorMessage(error)}`;
+    } else if (!handleExpiredMarketplaceSession(error)) {
+      $("deleteAccountStatus").textContent = `注销失败：${marketplaceErrorMessage(error)}`;
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+
+const ADMIN_USER_STATUS = { active: "正常", disabled: "已禁用", deleted: "已注销" };
+const ADMIN_RISK_STATUS = { pending: "待审核", confirmed: "已确认", false_positive: "误报", resolved: "已处理" };
+const ADMIN_RISK_LEVEL = { high: "高", medium: "中", low: "低" };
+
+function adminEmpty(message) {
+  return `<div class="workspace-empty compact"><strong>${escapeText(message)}</strong><p>可调整筛选条件后重新查询。</p></div>`;
+}
+
+function renderAdminOverview() {
+  const data = state.adminOverview;
+  if (!data) {
+    $("adminOverviewGrid").innerHTML = adminEmpty("暂无概览数据");
+    return;
+  }
+  const metrics = [
+    ["用户总数", data.users], ["今日新增", data.newUsersToday], ["在售商品", data.onSaleProducts],
+    ["已预订", data.reservedProducts], ["已售出", data.soldProducts], ["已下架", data.offlineProducts],
+    ["待处理交易", data.pendingTransactions], ["已完成交易", data.finishedTransactions],
+    ["高风险待审", data.pendingHighRisks], ["风险待审", data.pendingRisks],
+    ["DeepSeek 报告", data.deepSeekReports], ["本地回退报告", data.fallbackReports]
+  ];
+  $("adminOverviewGrid").innerHTML = metrics.map(([label, value]) => `<article class="admin-metric"><span>${label}</span><strong>${Number(value) || 0}</strong></article>`).join("");
+}
+
+function renderAdminUsers() {
+  if (!state.adminUsers.length) {
+    $("adminUsersList").innerHTML = adminEmpty("没有符合条件的用户");
+    return;
+  }
+  $("adminUsersList").innerHTML = `<table class="admin-table"><thead><tr><th>用户</th><th>角色 / 状态</th><th>业务数据</th><th>注册时间</th><th>操作</th></tr></thead><tbody>${state.adminUsers.map((user) => {
+    const isSelf = String(user.id) === String(state.currentUser.id);
+    const isDeleted = user.accountStatus === "deleted";
+    const nextStatus = user.accountStatus === "disabled" ? "active" : "disabled";
+    const action = isDeleted
+      ? `<small>已注销，不可操作</small>`
+      : `<button class="table-action ${nextStatus === "disabled" ? "danger-button" : "ghost-button"}" type="button" data-admin-user-id="${escapeText(user.id)}" data-next-status="${nextStatus}" ${isSelf ? "disabled title=\"不能操作当前管理员账号\"" : ""}>${nextStatus === "disabled" ? "禁用" : "启用"}</button>`;
+    return `<tr><td><strong>${escapeText(user.name)}</strong><small>${escapeText(user.loginName || "无登录账号")} · ${escapeText(user.campus)}</small></td><td><span class="status-chip">${user.role === "admin" ? "管理员" : "普通用户"}</span> <span class="status-chip ${user.accountStatus === "disabled" || isDeleted ? "danger" : ""}">${ADMIN_USER_STATUS[user.accountStatus] || user.accountStatus}</span></td><td><small>商品 ${Number(user.productCount) || 0} · 交易 ${Number(user.transactionCount) || 0} · 风险 ${Number(user.riskCount) || 0}</small></td><td><small>${formatDate(user.createdAt)}</small></td><td>${action}</td></tr>`;
+  }).join("")}</tbody></table>`;
+}
+
+function renderAdminProducts() {
+  if (!state.adminProducts.length) {
+    $("adminProductsList").innerHTML = adminEmpty("没有符合条件的商品");
+    return;
+  }
+  $("adminProductsList").innerHTML = `<table class="admin-table"><thead><tr><th>商品</th><th>卖家</th><th>状态</th><th>风险</th><th>操作</th></tr></thead><tbody>${state.adminProducts.map((product) => {
+    const canOffline = product.status === "on_sale";
+    const canRestore = product.status === "offline" && product.moderationStatus === "admin_offline";
+    const action = canOffline ? "offline" : canRestore ? "restore" : "";
+    return `<tr><td><strong>${escapeText(product.name)}</strong><small>${escapeText(product.category)} · ${money(product.price)}</small></td><td>${escapeText(product.sellerName || "未知卖家")}</td><td><span class="status-chip">${statusLabel(product.status)}</span>${product.adminOfflineReason ? `<small>${escapeText(product.adminOfflineReason)}</small>` : ""}</td><td>${Number(product.riskCount) || 0}</td><td>${action ? `<button class="table-action ${action === "offline" ? "danger-button" : "ghost-button"}" type="button" data-admin-product-id="${escapeText(product.id)}" data-product-action="${action}">${action === "offline" ? "下架" : "恢复"}</button>` : `<small>当前不可操作</small>`}</td></tr>`;
+  }).join("")}</tbody></table>`;
+}
+
+function renderAdminRisks() {
+  if (!state.adminRisks.length) {
+    $("adminRisksList").innerHTML = adminEmpty("没有符合条件的风险记录");
+    return;
+  }
+  $("adminRisksList").innerHTML = `<table class="admin-table"><thead><tr><th>风险</th><th>对象</th><th>等级</th><th>审核状态</th><th>操作</th></tr></thead><tbody>${state.adminRisks.map((risk) => `<tr><td><strong>${escapeText(risk.type || risk.ruleCode || "风险提示")}</strong><small>${escapeText(risk.message)}</small></td><td><small>${escapeText(risk.productName || risk.userName || "-")}</small></td><td><span class="status-chip ${risk.level === "high" ? "danger" : ""}">${ADMIN_RISK_LEVEL[risk.level] || risk.level}</span></td><td><span class="status-chip">${ADMIN_RISK_STATUS[risk.reviewStatus] || risk.reviewStatus}</span>${risk.reviewNote ? `<small>${escapeText(risk.reviewNote)}</small>` : ""}</td><td><button class="table-action ghost-button" type="button" data-admin-risk-id="${escapeText(risk.id)}">审核</button></td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderAdminLogs() {
+  if (!state.adminLogs.length) {
+    $("adminLogsList").innerHTML = adminEmpty("暂无管理员操作日志");
+    return;
+  }
+  $("adminLogsList").innerHTML = `<table class="admin-table"><thead><tr><th>管理员</th><th>操作</th><th>目标</th><th>原因</th><th>时间</th></tr></thead><tbody>${state.adminLogs.map((log) => `<tr><td>${escapeText(log.adminName || log.adminId)}</td><td><strong>${escapeText(log.actionType)}</strong></td><td><small>${escapeText(log.targetType)} · ${escapeText(log.targetId)}</small></td><td><small>${escapeText(log.reason || "-")}</small></td><td><small>${formatDate(log.createdAt)}</small></td></tr>`).join("")}</tbody></table>`;
+}
+
+function switchAdminTab(tab) {
+  const next = ["overview", "users", "products", "risks", "logs"].includes(tab) ? tab : "overview";
+  state.adminTab = next;
+  document.querySelectorAll("[data-admin-tab]").forEach((button) => button.classList.toggle("active", button.dataset.adminTab === next));
+  ["Overview", "Users", "Products", "Risks", "Logs"].forEach((name) => {
+    $(`admin${name}Panel`).hidden = name.toLowerCase() !== next;
+  });
+}
+
+async function refreshAdminSection() {
+  if (!hasAuthenticatedSession() || state.currentUser.role !== "admin") return;
+  switchAdminTab(state.adminTab);
+  setWorkspaceStatus("adminPageStatus", "正在加载管理数据...", "loading");
+  const paths = {
+    overview: "/api/admin/overview",
+    users: `/api/admin/users?q=${encodeURIComponent($("adminUserQuery").value.trim())}&status=${encodeURIComponent($("adminUserStatus").value)}`,
+    products: `/api/admin/products?q=${encodeURIComponent($("adminProductQuery").value.trim())}&status=${encodeURIComponent($("adminProductStatus").value)}`,
+    risks: `/api/admin/risks?status=${encodeURIComponent($("adminRiskStatus").value)}&level=${encodeURIComponent($("adminRiskLevel").value)}`,
+    logs: "/api/admin/audit-logs"
+  };
+  try {
+    const response = await getJson(paths[state.adminTab], authHeaders());
+    if (state.adminTab === "overview") state.adminOverview = response.data;
+    if (state.adminTab === "users") state.adminUsers = response.data || [];
+    if (state.adminTab === "products") state.adminProducts = response.data || [];
+    if (state.adminTab === "risks") state.adminRisks = response.data || [];
+    if (state.adminTab === "logs") state.adminLogs = response.data || [];
+    ({ overview: renderAdminOverview, users: renderAdminUsers, products: renderAdminProducts, risks: renderAdminRisks, logs: renderAdminLogs })[state.adminTab]();
+    setWorkspaceStatus("adminPageStatus", "");
+  } catch (error) {
+    if (!handleExpiredMarketplaceSession(error)) setWorkspaceStatus("adminPageStatus", `加载失败：${marketplaceErrorMessage(error)}`, "error");
+  }
+}
+
+function openAdminAction(action) {
+  state.adminAction = action;
+  const isRisk = action.type === "risk";
+  const title = action.type === "user" ? `${action.status === "disabled" ? "禁用" : "启用"}用户` : action.type === "product" ? `${action.action === "offline" ? "下架" : "恢复"}商品` : "审核风险记录";
+  $("adminActionTitle").textContent = title;
+  $("adminActionDescription").textContent = action.description || "请填写本次操作的原因，提交后将记录到审计日志。";
+  $("adminReviewStatusField").hidden = !isRisk;
+  $("adminActionReasonLabel").textContent = isRisk ? "审核备注" : "操作原因";
+  $("adminActionReason").value = "";
+  $("adminActionStatus").textContent = "";
+  $("adminActionDialog").showModal();
+}
+
+async function submitAdminAction(event) {
+  event.preventDefault();
+  const action = state.adminAction;
+  const reason = $("adminActionReason").value.trim();
+  if (!action || !reason) {
+    $("adminActionStatus").textContent = "请填写操作原因或审核备注。";
+    return;
+  }
+  const button = $("adminActionSubmit");
+  button.disabled = true;
+  $("adminActionStatus").textContent = "正在提交...";
+  try {
+    if (action.type === "user") await patchJson(`/api/admin/users/${encodeURIComponent(action.id)}/status`, { accountStatus: action.status, reason }, authHeaders());
+    if (action.type === "product") await postJson(`/api/admin/products/${encodeURIComponent(action.id)}/${action.action}`, { reason }, authHeaders());
+    if (action.type === "risk") await patchJson(`/api/admin/risks/${encodeURIComponent(action.id)}/review`, { reviewStatus: $("adminReviewStatus").value, note: reason }, authHeaders());
+    $("adminActionDialog").close();
+    await refreshAdminSection();
+    await showSuccessDialog("管理员操作已完成并写入审计日志");
+  } catch (error) {
+    if (!handleExpiredMarketplaceSession(error)) $("adminActionStatus").textContent = `提交失败：${marketplaceErrorMessage(error)}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function bindUpload(inputId, imageId) {
   $(inputId).addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
@@ -2022,6 +2328,40 @@ function bindUpload(inputId, imageId) {
 
 function setupEvents() {
   bindRouter();
+  $("profileForm").addEventListener("submit", submitProfile);
+  $("passwordForm").addEventListener("submit", submitPassword);
+  document.querySelectorAll("[data-account-tab]").forEach((button) => button.addEventListener("click", () => switchAccountTab(button.dataset.accountTab)));
+  $("openDeleteAccountBtn").addEventListener("click", openDeleteAccount);
+  $("deleteAccountForm").addEventListener("submit", submitDeleteAccount);
+  $("deleteAccountCancel").addEventListener("click", () => $("deleteAccountDialog").close());
+  document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      switchAdminTab(button.dataset.adminTab);
+      refreshAdminSection();
+    });
+  });
+  $("adminRefreshBtn").addEventListener("click", refreshAdminSection);
+  ["adminUsersFilter", "adminProductsFilter", "adminRisksFilter"].forEach((id) => {
+    $(id).addEventListener("submit", (event) => {
+      event.preventDefault();
+      refreshAdminSection();
+    });
+  });
+  $("adminUsersList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-user-id]");
+    if (button) openAdminAction({ type: "user", id: button.dataset.adminUserId, status: button.dataset.nextStatus });
+  });
+  $("adminProductsList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-product-id]");
+    if (button) openAdminAction({ type: "product", id: button.dataset.adminProductId, action: button.dataset.productAction });
+  });
+  $("adminRisksList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-risk-id]");
+    if (button) openAdminAction({ type: "risk", id: button.dataset.adminRiskId });
+  });
+  $("adminActionForm").addEventListener("submit", submitAdminAction);
+  $("adminActionCancel").addEventListener("click", () => $("adminActionDialog").close());
+  $("adminActionDialog").addEventListener("close", () => { state.adminAction = null; });
   $("loginForm").addEventListener("submit", loginUser);
   $("registerForm").addEventListener("submit", registerUser);
   $("loginTab").addEventListener("click", () => switchAuthMode("login"));
