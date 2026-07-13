@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260713-account-admin-ui" />
+    <link rel="stylesheet" href="/styles.css?v=20260713-account-admin-menu" />
   </head>
   <body>
     <header class="site-header">
@@ -25,16 +25,21 @@
         <a href="#authenticity" data-route="authenticity">真伪识别</a>
         <a href="#publish" data-route="publish">发布商品</a>
         <a href="#search" data-route="search">精准匹配</a>
-        <a id="myProductsNav" href="#my-products" data-route="my-products" hidden>我的商品</a>
-        <a id="myTransactionsNav" href="#my-transactions" data-route="my-transactions" hidden>我的交易</a>
-        <a id="myFavoritesNav" href="#my-favorites" data-route="my-favorites" hidden>我的收藏</a>
-        <a id="messagesNav" href="#messages" data-route="messages" hidden>消息</a>
-        <a id="aiHistoryNav" href="#ai-history" data-route="ai-history" hidden>AI 记录</a>
-        <a id="adminNav" href="#admin" data-route="admin" hidden>管理后台</a>
       </nav>
 
       <div class="header-actions">
         <a class="cta-pill" id="accountAction" href="#login" data-route="login">登录</a>
+        <details class="account-menu" id="myMenu" hidden>
+          <summary>我的</summary>
+          <nav aria-label="个人工作区">
+            <a id="myProductsNav" href="#my-products" data-route="my-products">我的商品</a>
+            <a id="myTransactionsNav" href="#my-transactions" data-route="my-transactions">我的交易</a>
+            <a id="myFavoritesNav" href="#my-favorites" data-route="my-favorites">我的收藏</a>
+            <a id="messagesNav" href="#messages" data-route="messages">消息</a>
+            <a id="aiHistoryNav" href="#ai-history" data-route="ai-history">AI 记录</a>
+            <a id="adminNav" href="#admin" data-route="admin" hidden>管理后台</a>
+          </nav>
+        </details>
       </div>
     </header>
 
@@ -563,6 +568,6 @@
     </dialog>
 
     <script src="/search-matching.js?v=20260711-precise-search"></script>
-    <script src="/app.js?v=20260713-account-admin-ui"></script>
+    <script src="/app.js?v=20260713-account-admin-menu"></script>
   </body>
 </html>

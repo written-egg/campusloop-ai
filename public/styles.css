@@ -269,6 +269,63 @@ label {
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
+.account-menu {
+  position: relative;
+}
+
+.account-menu summary {
+  list-style: none;
+  padding: 11px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  color: #f7f7f0;
+  background: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.account-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-menu summary::after {
+  content: "▾";
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.account-menu[open] summary::after {
+  content: "▴";
+}
+
+.account-menu > nav {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 190px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop-lg);
+}
+
+.account-menu > nav a {
+  padding: 11px 13px;
+  border-radius: 11px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.account-menu > nav a:hover,
+.account-menu > nav a.active {
+  background: var(--lime-2);
+}
+
 .eyebrow,
 .tag-list span,
 .trust-strip span {
@@ -2270,7 +2327,7 @@ label {
 
   .header-actions {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .hero-grid,
@@ -2355,6 +2412,11 @@ label {
 
   .header-actions {
     justify-content: end;
+  }
+
+  .account-menu > nav {
+    right: 0;
+    width: min(240px, calc(100vw - 36px));
   }
 
   .hero-grid {

@@ -458,6 +458,7 @@ function bindRouter() {
   document.querySelectorAll("a[data-route]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
+      $("myMenu").open = false;
       navigateTo(link.dataset.route);
     });
   });
@@ -558,6 +559,7 @@ function renderCurrentUser() {
   $("messagesNav").hidden = !loggedIn;
   $("aiHistoryNav").hidden = !loggedIn;
   $("adminNav").hidden = !loggedIn || state.currentUser.role !== "admin";
+  $("myMenu").hidden = !loggedIn;
   if (loggedIn) $("saveStatus").textContent = `当前卖家：${state.currentUser.name}`;
 }
 
