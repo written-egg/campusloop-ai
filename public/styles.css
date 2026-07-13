@@ -1102,6 +1102,11 @@ label {
   background: #fff0bd;
 }
 
+.status-badge.confirmed {
+  color: #234e63;
+  background: #dceff6;
+}
+
 .status-badge.sold,
 .status-badge.finished {
   color: #24503c;
@@ -1112,6 +1117,12 @@ label {
 .status-badge.cancelled {
   color: #65675f;
   background: #ecebe4;
+}
+
+.status-badge.disputed {
+  color: #7a2c22;
+  border-color: #d88a7e;
+  background: #ffe1d8;
 }
 
 .transaction-card {
@@ -1127,6 +1138,65 @@ label {
   border-radius: 18px;
   object-fit: cover;
   background: var(--blue);
+}
+
+.transaction-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.transaction-meta strong {
+  color: #4e5b07;
+  font-family: "Sora", sans-serif;
+  font-size: 22px;
+}
+
+.transaction-meta span,
+.transaction-closed {
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.transaction-dispute {
+  max-width: 720px;
+  padding: 12px 14px;
+  border-left: 4px solid #d88a7e;
+  border-radius: 6px;
+  background: #fff1ed;
+}
+
+.transaction-dispute b {
+  color: #7a2c22;
+  font-size: 13px;
+}
+
+.transaction-dispute p {
+  margin-top: 3px;
+  color: #603c35;
+}
+
+.transaction-closed {
+  max-width: 150px;
+  text-align: right;
+}
+
+.dispute-dialog form {
+  min-width: min(560px, calc(100vw - 64px));
+}
+
+.dispute-form-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--soft);
+}
+
+.dispute-form-meta .dialog-status {
+  color: #9c3024;
+  text-align: right;
 }
 
 .detail-actions .selected {
@@ -2544,6 +2614,15 @@ label {
   .dialog-actions button,
   .favorite-actions button {
     width: 100%;
+  }
+
+  .transaction-closed {
+    max-width: none;
+    text-align: left;
+  }
+
+  .dispute-dialog form {
+    min-width: 0;
   }
 
   .messages-workspace {

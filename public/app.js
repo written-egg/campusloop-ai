@@ -17,6 +17,7 @@ const state = {
   transactionsLoaded: false,
   transactionsError: "",
   transactionRole: "buyer",
+  disputingTransactionId: "",
   editingProductId: "",
   favorites: [],
   favoritesLoaded: false,
@@ -335,6 +336,7 @@ function resetMarketplaceState() {
   state.transactionsLoaded = false;
   state.transactionsError = "";
   state.transactionRole = "buyer";
+  state.disputingTransactionId = "";
   state.editingProductId = "";
   state.favorites = [];
   state.favoritesLoaded = false;
@@ -713,6 +715,7 @@ function openProductDetail(id) {
 }
 
 function formatDate(value) {
+  if (!value) return "时间待补充";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "时间待补充";
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date);
@@ -726,9 +729,11 @@ const PRODUCT_STATUS_LABELS = {
 };
 
 const TRANSACTION_STATUS_LABELS = {
-  pending: "待确认",
+  pending: "等待卖家确认",
+  confirmed: "待当面交易",
   finished: "已完成",
-  cancelled: "已取消"
+  cancelled: "已取消",
+  disputed: "争议处理中"
 };
 
 function statusLabel(status, type = "product") {
@@ -920,18 +925,41 @@ async function takeProductOffline(id, button) {
   }
 }
 
+function transactionActions(item) {
+  if (item.status === "pending") {
+    return [
+      ...(item.role === "seller" ? [{ action: "confirm", label: "确认预订", className: "" }] : []),
+      { action: "cancel", label: item.role === "buyer" ? "取消预订" : "取消交易", className: "danger-button" }
+    ];
+  }
+  if (item.status === "confirmed") {
+    return [
+      ...(item.role === "seller" ? [{ action: "finish", label: "完成交易", className: "" }] : []),
+      { action: "dispute", label: "发起争议", className: "ghost-button" },
+      { action: "cancel", label: "取消交易", className: "danger-button" }
+    ];
+  }
+  return [];
+}
+
+function transactionStatusDetail(item) {
+  if (item.status === "pending") return `等待卖家确认预订 · ${formatDate(item.createdAt)}`;
+  if (item.status === "confirmed") return `卖家已确认，等待当面交易 · ${formatDate(item.confirmedAt)}`;
+  if (item.status === "finished") return `交易完成 · ${formatDate(item.finishedAt)}`;
+  if (item.status === "cancelled") return `交易取消 · ${formatDate(item.cancelledAt)}`;
+  if (item.status === "disputed") return `争议发起于 ${formatDate(item.disputedAt)}`;
+  return "交易状态待更新";
+}
+
 function renderTransactions() {
   const filtered = state.tradeRecords.filter((item) => item.role === state.transactionRole);
   $("transactionsEmpty").hidden = filtered.length > 0;
   $("transactionsList").innerHTML = filtered
     .map((item) => {
       const counterpart = item.role === "buyer" ? item.seller : item.buyer;
-      const actions = item.status === "pending"
-        ? `${item.role === "seller" ? `<button type="button" data-transaction-action="finish" data-id="${escapeText(item.id)}">确认完成</button>` : ""}
-           <button class="danger-button" type="button" data-transaction-action="cancel" data-id="${escapeText(item.id)}">取消交易</button>`
-        : "";
+      const actions = transactionActions(item);
       return `
-        <article class="transaction-card">
+        <article class="transaction-card" data-transaction-id="${escapeText(item.id)}">
           <img src="${escapeText(item.productImage || imageFallbackFor("交易商品"))}" alt="${escapeText(item.productName)}" data-fallback="${escapeText(imageFallbackFor("交易商品"))}">
           <div class="transaction-copy">
             <div class="transaction-title-row">
@@ -939,10 +967,14 @@ function renderTransactions() {
               <span>${item.role === "buyer" ? "买入" : "卖出"}</span>
             </div>
             <h3>${escapeText(item.productName)}</h3>
-            <p>交易对象：${escapeText(counterpart?.name || "校园同学")} · 创建于 ${escapeText(formatDate(item.createdAt))}</p>
-            <strong>${money(item.finalPrice)}</strong>
+            <p>交易对象：${escapeText(counterpart?.name || "校园同学")}</p>
+            <div class="transaction-meta">
+              <strong>${money(item.finalPrice)}</strong>
+              <span>${escapeText(transactionStatusDetail(item))}</span>
+            </div>
+            ${item.status === "disputed" ? `<div class="transaction-dispute"><b>争议原因</b><p>${escapeText(item.disputeReason || "暂未提供争议说明")}</p></div>` : ""}
           </div>
-          ${actions ? `<div class="transaction-actions">${actions}</div>` : ""}
+          ${actions.length ? `<div class="transaction-actions">${actions.map((action) => `<button class="${action.className}" type="button" data-transaction-action="${action.action}" data-id="${escapeText(item.id)}" data-default-label="${action.label}">${action.label}</button>`).join("")}</div>` : `<div class="transaction-closed">当前交易暂无可用操作</div>`}
         </article>
       `;
     })
@@ -954,7 +986,10 @@ function renderTransactions() {
     });
   });
   document.querySelectorAll("[data-transaction-action]").forEach((button) => {
-    button.addEventListener("click", () => updateTransaction(button.dataset.id, button.dataset.transactionAction, button));
+    button.addEventListener("click", () => {
+      if (button.dataset.transactionAction === "dispute") openDisputeDialog(button.dataset.id);
+      else updateTransaction(button.dataset.id, button.dataset.transactionAction, button);
+    });
   });
 }
 
@@ -983,27 +1018,100 @@ async function refreshTransactions({ quiet = false } = {}) {
 async function updateTransaction(id, action, button) {
   const transaction = state.tradeRecords.find((item) => String(item.id) === String(id));
   if (!transaction) return;
-  const finishing = action === "finish";
+  const actionConfig = {
+    confirm: {
+      message: "确认接受该买家的预订吗？确认后双方可以继续协商当面交易。",
+      confirmLabel: "确认预订",
+      loadingLabel: "正在确认...",
+      successMessage: "预订已确认"
+    },
+    finish: {
+      message: "确认交易已经完成吗？完成后商品将标记为已售出。",
+      confirmLabel: "完成交易",
+      loadingLabel: "正在完成...",
+      successMessage: "交易已完成"
+    },
+    cancel: {
+      message: "确认取消这笔交易吗？取消后商品将恢复为在售状态。",
+      confirmLabel: "确认取消",
+      loadingLabel: "正在取消...",
+      successMessage: "交易已取消"
+    }
+  }[action];
+  if (!actionConfig) return;
   const confirmed = await showConfirmDialog(
-    finishing ? `确认“${transaction.productName}”已经完成交易吗？` : `确认取消“${transaction.productName}”的待处理交易吗？`,
-    finishing ? "确认完成" : "确认取消"
+    actionConfig.message,
+    actionConfig.confirmLabel
   );
   if (!confirmed) return;
-  button.disabled = true;
-  button.textContent = finishing ? "正在确认..." : "正在取消...";
+  const card = button.closest(".transaction-card");
+  const cardButtons = card ? [...card.querySelectorAll("[data-transaction-action]")] : [button];
+  cardButtons.forEach((item) => { item.disabled = true; });
+  button.textContent = actionConfig.loadingLabel;
   try {
-    await postJson(`/api/transactions/${encodeURIComponent(id)}/${finishing ? "finish" : "cancel"}`, {}, authHeaders());
+    await postJson(`/api/transactions/${encodeURIComponent(id)}/${action}`, {}, authHeaders());
     await Promise.all([refreshTransactions(), refreshMyProducts({ quiet: true }), refreshProducts()]);
-    await showSuccessDialog(finishing ? "交易已完成" : "交易已取消");
+    await showSuccessDialog(actionConfig.successMessage);
   } catch (error) {
     if (handleExpiredMarketplaceSession(error)) return;
     setWorkspaceStatus("transactionsStatus", marketplaceErrorMessage(error, "交易操作失败，请稍后重试。"), error?.status === 409 ? "warning" : "error");
     if (error?.status === 409) await refreshTransactions({ quiet: true });
   } finally {
-    if (button.isConnected) {
-      button.disabled = false;
-      button.textContent = finishing ? "确认完成" : "取消交易";
+    cardButtons.forEach((item) => {
+      if (!item.isConnected) return;
+      item.disabled = false;
+      item.textContent = item.dataset.defaultLabel;
+    });
+  }
+}
+
+function openDisputeDialog(id) {
+  const transaction = state.tradeRecords.find((item) => String(item.id) === String(id));
+  if (!transaction || transaction.status !== "confirmed") {
+    setWorkspaceStatus("transactionsStatus", "只有待当面交易的订单可以发起争议，正在刷新交易状态。", "warning");
+    refreshTransactions({ quiet: true });
+    return;
+  }
+  state.disputingTransactionId = String(id);
+  $("disputeProductName").textContent = transaction.productName || "当前交易";
+  $("disputeReasonInput").value = "";
+  $("disputeReasonCount").textContent = "0 / 500";
+  $("disputeStatus").textContent = "";
+  $("disputeDialog").showModal();
+  $("disputeReasonInput").focus();
+}
+
+async function submitDispute(event) {
+  event.preventDefault();
+  const reason = $("disputeReasonInput").value.trim();
+  if (!reason) {
+    $("disputeStatus").textContent = "请填写争议原因。";
+    return;
+  }
+  if (reason.length > 500) {
+    $("disputeStatus").textContent = "争议原因不能超过 500 个字符。";
+    return;
+  }
+  const id = state.disputingTransactionId;
+  const button = $("disputeSubmitBtn");
+  button.disabled = true;
+  button.textContent = "正在提交...";
+  $("disputeStatus").textContent = "正在提交争议...";
+  try {
+    await postJson(`/api/transactions/${encodeURIComponent(id)}/dispute`, { reason }, authHeaders());
+    $("disputeDialog").close();
+    await Promise.all([refreshTransactions(), refreshMyProducts({ quiet: true }), refreshProducts()]);
+    await showSuccessDialog("争议已提交");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) {
+      $("disputeDialog").close();
+      return;
     }
+    $("disputeStatus").textContent = marketplaceErrorMessage(error, "争议提交失败，请稍后重试。");
+    if (error?.status === 409) await refreshTransactions({ quiet: true });
+  } finally {
+    button.disabled = false;
+    button.textContent = "提交争议";
   }
 }
 
@@ -2402,6 +2510,17 @@ function setupEvents() {
   $("editProductDialog").addEventListener("close", () => {
     state.editingProductId = "";
     $("editProductStatus").textContent = "";
+  });
+  $("disputeForm").addEventListener("submit", submitDispute);
+  $("disputeCancelBtn").addEventListener("click", () => $("disputeDialog").close());
+  $("disputeDialog").addEventListener("close", () => {
+    state.disputingTransactionId = "";
+    $("disputeStatus").textContent = "";
+  });
+  $("disputeReasonInput").addEventListener("input", () => {
+    const length = $("disputeReasonInput").value.length;
+    $("disputeReasonCount").textContent = `${length} / 500`;
+    if (length && $("disputeStatus").textContent === "请填写争议原因。") $("disputeStatus").textContent = "";
   });
   document.querySelectorAll("[data-product-status]").forEach((button) => {
     button.addEventListener("click", () => {
