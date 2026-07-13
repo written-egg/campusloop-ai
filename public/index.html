@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260713-account-admin-menu" />
+    <link rel="stylesheet" href="/styles.css?v=20260713-account-menu-logout" />
   </head>
   <body>
     <header class="site-header">
@@ -38,6 +38,7 @@
             <a id="messagesNav" href="#messages" data-route="messages">消息</a>
             <a id="aiHistoryNav" href="#ai-history" data-route="ai-history">AI 记录</a>
             <a id="adminNav" href="#admin" data-route="admin" hidden>管理后台</a>
+            <button id="logoutBtn" class="logout-button" type="button" hidden>退出登录</button>
           </nav>
         </details>
       </div>
@@ -510,7 +511,6 @@
               <span>当前用户</span>
               <strong id="currentUserText">未登录</strong>
             </div>
-            <button id="logoutBtn" class="logout-button" type="button" hidden>退出登录</button>
           </div>
         </section>
       </section>

@@ -326,6 +326,18 @@ label {
   background: var(--lime-2);
 }
 
+.account-menu > nav .logout-button {
+  margin-top: 6px;
+  padding: 11px 13px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
 .eyebrow,
 .tag-list span,
 .trust-strip span {
