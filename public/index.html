@@ -257,7 +257,7 @@
           <div>
             <p class="kicker">卖家工作区</p>
             <h2>管理我发布的商品</h2>
-            <p>商品状态以 SQL Server 返回结果为准，编辑和下架成功后会重新读取列表。</p>
+            <p>商品状态以平台记录为准，编辑和下架成功后会自动刷新列表。</p>
           </div>
           <button id="myProductsPublishBtn" type="button">发布新商品</button>
         </section>
@@ -303,7 +303,7 @@
           <div>
             <p class="kicker">收藏夹</p>
             <h2>留住值得再看的校园好物</h2>
-            <p>收藏状态以后端返回为准。已售出或已下架的商品仍会保留在这里，但不能继续预订。</p>
+            <p>收藏状态以平台记录为准。已售出或已下架的商品仍会保留在这里，但不能继续预订。</p>
           </div>
           <button id="favoritesBrowseBtn" type="button">继续浏览</button>
         </section>
@@ -321,7 +321,7 @@
           <div>
             <p class="kicker">站内消息</p>
             <h2>和买卖双方保持联系</h2>
-            <p>每段会话都绑定商品与对方账号，消息发送成功后使用后端返回记录更新。</p>
+            <p>每段会话都绑定商品与对方账号，消息发送成功后会自动更新记录。</p>
           </div>
           <button id="messagesRefreshBtn" class="ghost-button" type="button">刷新会话</button>
         </section>
@@ -376,7 +376,7 @@
         <div id="aiHistoryStatus" class="page-state loading" role="status" aria-live="polite">正在加载 AI 记录...</div>
         <div id="aiHistoryEmpty" class="workspace-empty" hidden>
           <strong>当前类型还没有 AI 记录</strong>
-          <p>完成智能估价或真伪风险评估后，SQL Server 中的记录会显示在这里。</p>
+          <p>完成智能估价或真伪风险评估后，相关记录会显示在这里。</p>
         </div>
         <div id="aiHistoryList" class="ai-history-list"></div>
       </section>
@@ -568,6 +568,6 @@
     </dialog>
 
     <script src="/search-matching.js?v=20260711-precise-search"></script>
-    <script src="/app.js?v=20260713-risk-card"></script>
+    <script src="/app.js?v=20260713-user-copy"></script>
   </body>
 </html>

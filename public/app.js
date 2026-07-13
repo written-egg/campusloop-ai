@@ -212,7 +212,7 @@ function apiErrorMessage(error, fallback = "请求失败，请检查本地服务
   if (error?.status === 401) return error.message || "账号密码错误或登录已失效。";
   if (error?.status === 409) return "账号已经存在，请直接登录或更换账号。";
   if (error?.status === 413) return "图片或请求内容过大，请压缩图片后重试。";
-  if (error?.status === 503) return "SQL Server 未配置或暂时不可用，请联系 A 检查数据库环境。";
+  if (error?.status === 503) return "服务暂时不可用，请稍后重试。";
   if (error instanceof TypeError) return "网络连接失败，请确认本地服务正在运行。";
   if (!error) return fallback;
   if (typeof error === "string") return error;
@@ -364,7 +364,7 @@ function resetMarketplaceState() {
 
 function persistSession(account) {
   const { sessionToken, ...currentUser } = account || {};
-  if (!currentUser.id || !sessionToken) throw new Error("认证接口未返回完整的用户和会话令牌。");
+  if (!currentUser.id || !sessionToken) throw new Error("登录信息不完整，请重新登录。" );
   resetMarketplaceState();
   state.currentUser = currentUser;
   state.sessionToken = sessionToken;
@@ -685,7 +685,7 @@ async function logoutUser() {
   try {
     await postJson("/api/auth/logout", {}, authHeaders());
   } catch (error) {
-    logoutMessage = `退出接口未完成，但本地登录状态已清除：${apiErrorMessage(error)}`;
+    logoutMessage = `服务暂未响应，本机登录状态已清除：${apiErrorMessage(error)}`;
   } finally {
     clearSession();
     clearPasswordFields();
@@ -1015,7 +1015,7 @@ async function reserveProduct(id, button) {
   }
   const product = state.products.find((item) => String(item.id) === String(id));
   if (!product) return;
-  const confirmed = await showConfirmDialog(`确认预订“${product.name}”吗？最终价格以当前数据库售价为准。`, "确认预订");
+  const confirmed = await showConfirmDialog(`确认预订“${product.name}”吗？预订价格以当前商品售价为准。`, "确认预订");
   if (!confirmed) return;
   button.disabled = true;
   button.textContent = "正在预订...";
@@ -1279,7 +1279,7 @@ function contactSeller(product) {
   const existing = state.conversations.find((item) => String(item.productId) === String(product.id));
   const peerId = product.sellerId || existing?.peerId;
   if (!peerId) {
-    setWorkspaceStatus("detailStatus", "暂时无法发起新会话：商品接口未返回卖家账号标识，请联系 A 补充 sellerId 字段。", "error");
+    setWorkspaceStatus("detailStatus", "暂时无法联系卖家，请稍后重试。", "error");
     return;
   }
   if (String(peerId) === String(state.currentUser.id)) {
@@ -1744,7 +1744,7 @@ async function saveCurrentProduct() {
       state.products = mergeProducts(persisted ? remoteProducts : [product, ...remoteProducts]);
       saveMessage = persisted
         ? `发布成功：${product.name}（已写入 ${storageLabel(productsResponse.storage)}，刷新后仍可见）`
-        : `发布成功：${product.name}（接口已返回成功，列表同步稍有延迟）`;
+        : `发布成功：${product.name}（商品列表可能稍后更新）`;
     } catch (verifyError) {
       state.products = mergeProducts([product, ...state.products]);
       saveMessage = `发布成功：${product.name}（复查列表失败：${apiErrorMessage(verifyError)}）`;
