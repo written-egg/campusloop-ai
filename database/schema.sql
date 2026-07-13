@@ -8,6 +8,7 @@ USE CampusLoopDB;
 GO
 
 IF OBJECT_ID(N'dbo.RiskLogs', N'U') IS NOT NULL DROP TABLE dbo.RiskLogs;
+IF OBJECT_ID(N'dbo.AdminAuditLogs', N'U') IS NOT NULL DROP TABLE dbo.AdminAuditLogs;
 IF OBJECT_ID(N'dbo.AIReports', N'U') IS NOT NULL DROP TABLE dbo.AIReports;
 IF OBJECT_ID(N'dbo.Messages', N'U') IS NOT NULL DROP TABLE dbo.Messages;
 IF OBJECT_ID(N'dbo.Favorites', N'U') IS NOT NULL DROP TABLE dbo.Favorites;
@@ -27,9 +28,12 @@ CREATE TABLE dbo.Users (
     Campus NVARCHAR(50) NOT NULL,
     TrustScore INT NOT NULL CONSTRAINT DF_Users_TrustScore DEFAULT 80,
     RoleName NVARCHAR(20) NOT NULL CONSTRAINT DF_Users_RoleName DEFAULT N'student',
+    AccountStatus NVARCHAR(20) NOT NULL CONSTRAINT DF_Users_AccountStatus DEFAULT N'active',
+    DeletedAt DATETIME2(0) NULL,
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Users_CreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Users_UpdatedAt DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT CK_Users_TrustScore CHECK (TrustScore BETWEEN 0 AND 100)
+    CONSTRAINT CK_Users_TrustScore CHECK (TrustScore BETWEEN 0 AND 100),
+    CONSTRAINT CK_Users_AccountStatus CHECK (AccountStatus IN (N'active', N'disabled', N'deleted'))
 );
 GO
 
@@ -62,6 +66,8 @@ CREATE TABLE dbo.Products (
     Views INT NOT NULL CONSTRAINT DF_Products_Views DEFAULT 0,
     TrustScore INT NOT NULL CONSTRAINT DF_Products_TrustScore DEFAULT 90,
     StatusName NVARCHAR(20) NOT NULL CONSTRAINT DF_Products_StatusName DEFAULT N'on_sale',
+    ModerationStatus NVARCHAR(20) NOT NULL CONSTRAINT DF_Products_ModerationStatus DEFAULT N'normal',
+    AdminOfflineReason NVARCHAR(300) NULL,
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Products_CreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Products_UpdatedAt DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_Products_Users FOREIGN KEY (SellerId) REFERENCES dbo.Users(UserId),
@@ -70,7 +76,8 @@ CREATE TABLE dbo.Products (
     CONSTRAINT CK_Products_OriginalPrice CHECK (OriginalPrice IS NULL OR OriginalPrice >= 0),
     CONSTRAINT CK_Products_Score CHECK (Score BETWEEN 0 AND 5),
     CONSTRAINT CK_Products_TrustScore CHECK (TrustScore BETWEEN 0 AND 100),
-    CONSTRAINT CK_Products_StatusName CHECK (StatusName IN (N'on_sale', N'reserved', N'sold', N'offline'))
+    CONSTRAINT CK_Products_StatusName CHECK (StatusName IN (N'on_sale', N'reserved', N'sold', N'offline')),
+    CONSTRAINT CK_Products_ModerationStatus CHECK (ModerationStatus IN (N'normal', N'admin_offline'))
 );
 GO
 
@@ -150,10 +157,29 @@ CREATE TABLE dbo.RiskLogs (
     RiskLevel NVARCHAR(20) NOT NULL,
     Message NVARCHAR(300) NOT NULL,
     RuleCode NVARCHAR(40) NULL,
+    ReviewStatus NVARCHAR(20) NOT NULL CONSTRAINT DF_RiskLogs_ReviewStatus DEFAULT N'pending',
+    ReviewNote NVARCHAR(500) NULL,
+    ReviewedBy INT NULL,
+    ReviewedAt DATETIME2(0) NULL,
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_RiskLogs_CreatedAt DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_RiskLogs_Products FOREIGN KEY (ProductId) REFERENCES dbo.Products(ProductId),
     CONSTRAINT FK_RiskLogs_Users FOREIGN KEY (UserId) REFERENCES dbo.Users(UserId),
-    CONSTRAINT CK_RiskLogs_RiskLevel CHECK (RiskLevel IN (N'low', N'medium', N'high'))
+    CONSTRAINT CK_RiskLogs_RiskLevel CHECK (RiskLevel IN (N'low', N'medium', N'high')),
+    CONSTRAINT CK_RiskLogs_ReviewStatus CHECK (ReviewStatus IN (N'pending', N'confirmed', N'false_positive', N'resolved')),
+    CONSTRAINT FK_RiskLogs_ReviewedBy FOREIGN KEY (ReviewedBy) REFERENCES dbo.Users(UserId)
+);
+GO
+
+CREATE TABLE dbo.AdminAuditLogs (
+    AuditLogId BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AdminAuditLogs PRIMARY KEY,
+    AdminUserId INT NOT NULL,
+    ActionType NVARCHAR(40) NOT NULL,
+    TargetType NVARCHAR(30) NOT NULL,
+    TargetId NVARCHAR(50) NOT NULL,
+    Reason NVARCHAR(300) NULL,
+    DetailJson NVARCHAR(MAX) NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AdminAuditLogs_CreatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_AdminAuditLogs_AdminUser FOREIGN KEY (AdminUserId) REFERENCES dbo.Users(UserId)
 );
 GO
 
@@ -166,6 +192,8 @@ CREATE INDEX IX_Transactions_SellerId ON dbo.Transactions(SellerId);
 CREATE INDEX IX_Messages_ReceiverRead ON dbo.Messages(ReceiverId, IsRead, CreatedAt DESC);
 CREATE INDEX IX_AIReports_ProductType ON dbo.AIReports(ProductId, ReportType, CreatedAt DESC);
 CREATE INDEX IX_RiskLogs_ProductLevel ON dbo.RiskLogs(ProductId, RiskLevel, CreatedAt DESC);
+CREATE INDEX IX_RiskLogs_ReviewStatus ON dbo.RiskLogs(ReviewStatus, CreatedAt DESC);
+CREATE INDEX IX_AdminAuditLogs_CreatedAt ON dbo.AdminAuditLogs(CreatedAt DESC);
 GO
 
 IF OBJECT_ID(N'dbo.ActiveProductView', N'V') IS NOT NULL DROP VIEW dbo.ActiveProductView;

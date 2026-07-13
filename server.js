@@ -279,6 +279,18 @@ function fallbackCustomerService(message = "", products = []) {
   };
 }
 
+async function requireAdminUser(req) {
+  const userId = requireSessionUser(req);
+  const user = await sqlStore.getUserByExternalId(userId);
+  if (!user || user.accountStatus === "disabled") {
+    const error = new Error("账号已被禁用或不存在。"); error.statusCode = 403; throw error;
+  }
+  if (user.role !== "admin") {
+    const error = new Error("仅管理员可以访问该功能。"); error.statusCode = 403; throw error;
+  }
+  return userId;
+}
+
 function fallbackEstimate(body = {}) {
   const local = body.localEstimate || {};
   const suggested = Math.max(1, Number(local.suggested) || 0);
@@ -446,14 +458,43 @@ http
           return send(res, 503, { ok: false, data: null, error: "登录功能需要配置 SQL Server。" });
         }
         const user = await sqlStore.getUserByExternalId(session.userId);
-        if (!user) {
+        if (!user || user.accountStatus === "disabled") {
           sessions.delete(session.token);
-          return send(res, 401, { ok: false, data: null, error: "登录用户不存在，请重新登录。" });
+          return send(res, 401, { ok: false, data: null, error: user ? "账号已被管理员禁用。" : "登录用户不存在，请重新登录。" });
         }
         return send(res, 200, { ok: true, data: user, error: null });
       } catch (error) {
         return send(res, error.statusCode || 500, { ok: false, data: null, error: error.message || "Session check failed" });
       }
+    }
+    const adminUserStatusMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/status$/);
+    const adminProductActionMatch = url.pathname.match(/^\/api\/admin\/products\/([^/]+)\/(offline|restore)$/);
+    const adminRiskReviewMatch = url.pathname.match(/^\/api\/admin\/risks\/(\d+)\/review$/);
+    if (url.pathname.startsWith("/api/admin/")) {
+      try {
+        const adminId = await requireAdminUser(req);
+        let data;
+        if (req.method === "GET" && url.pathname === "/api/admin/overview") data = await sqlStore.getAdminOverview();
+        else if (req.method === "GET" && url.pathname === "/api/admin/users") data = await sqlStore.listAdminUsers({query:url.searchParams.get("q")||"",status:url.searchParams.get("status")||"all"});
+        else if (req.method === "PATCH" && adminUserStatusMatch) { const body=await readBody(req); const targetId=decodeURIComponent(adminUserStatusMatch[1]); data=await sqlStore.setAdminUserStatus(adminId,targetId,body.accountStatus,body.reason); if(body.accountStatus==="disabled") for(const [token,session] of sessions) if(session.userId===targetId) sessions.delete(token); }
+        else if (req.method === "GET" && url.pathname === "/api/admin/products") data = await sqlStore.listAdminProducts({query:url.searchParams.get("q")||"",status:url.searchParams.get("status")||"all"});
+        else if (req.method === "POST" && adminProductActionMatch) { const body=await readBody(req); data=await sqlStore.moderateProduct(adminId,decodeURIComponent(adminProductActionMatch[1]),adminProductActionMatch[2],body.reason); }
+        else if (req.method === "GET" && url.pathname === "/api/admin/risks") data=await sqlStore.listAdminRisks({status:url.searchParams.get("status")||"all",level:url.searchParams.get("level")||"all"});
+        else if (req.method === "PATCH" && adminRiskReviewMatch) { const body=await readBody(req); data=await sqlStore.reviewRisk(adminId,Number(adminRiskReviewMatch[1]),body.reviewStatus,body.note); }
+        else if (req.method === "GET" && url.pathname === "/api/admin/audit-logs") data=await sqlStore.listAdminAuditLogs();
+        else return send(res,404,{ok:false,data:null,error:"管理员接口不存在。"});
+        return send(res,200,{ok:true,data,error:null,storage:"sql-server"});
+      } catch(error) { return send(res,error.statusCode||500,{ok:false,data:null,error:error.message||"Admin operation failed"}); }
+    }
+    if (url.pathname === "/api/account" || url.pathname.startsWith("/api/account/")) {
+      try {
+        const userId=requireSessionUser(req); let data;
+        if(req.method==="PATCH"&&url.pathname==="/api/account/profile") data=await sqlStore.updateAccountProfile(userId,await readBody(req));
+        else if(req.method==="PATCH"&&url.pathname==="/api/account/password") { data=await sqlStore.changeAccountPassword(userId,await readBody(req)); for(const [token,session] of sessions) if(session.userId===userId) sessions.delete(token); }
+        else if(req.method==="DELETE"&&url.pathname==="/api/account") { data=await sqlStore.deleteAccount(userId,await readBody(req)); for(const [token,session] of sessions) if(session.userId===userId) sessions.delete(token); }
+        else return send(res,404,{ok:false,data:null,error:"账号接口不存在。"});
+        return send(res,200,{ok:true,data,error:null,storage:"sql-server"});
+      }catch(error){return send(res,error.statusCode||500,{ok:false,data:null,error:error.message||"Account operation failed"});}
     }
     const ownProductMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)$/);
     const offShelfMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)\/off-shelf$/);

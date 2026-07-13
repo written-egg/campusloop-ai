@@ -12,8 +12,12 @@
     "check:search": "node tools/check-search-matching.js",
     "check:marketplace-api": "node tools/check-marketplace-api.js",
     "check:social-ai-api": "node tools/check-social-ai-api.js",
+    "check:admin-api": "node tools/check-admin-api.js",
+    "check:account-api": "node tools/check-account-api.js",
     "migrate:auth": "node tools/run-sql-file.js database/migrations/002_auth_and_advanced_objects.sql",
-    "migrate:product-description": "node tools/run-sql-file.js database/migrations/003_product_description_view.sql"
+    "migrate:product-description": "node tools/run-sql-file.js database/migrations/003_product_description_view.sql",
+    "migrate:admin": "node tools/run-sql-file.js database/migrations/004_admin_moderation.sql",
+    "migrate:account": "node tools/run-sql-file.js database/migrations/005_account_management.sql"
   },
   "engines": {
     "node": ">=18"
