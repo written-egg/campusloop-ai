@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260708-merge" />
+    <link rel="stylesheet" href="/styles.css?v=20260716-primary-shadow" />
   </head>
   <body>
     <header class="site-header">
@@ -28,7 +28,19 @@
       </nav>
 
       <div class="header-actions">
-        <a class="cta-pill" href="#login" data-route="login">登录</a>
+        <a class="cta-pill" id="accountAction" href="#login" data-route="login">登录</a>
+        <details class="account-menu" id="myMenu" hidden>
+          <summary>我的</summary>
+          <nav aria-label="个人工作区">
+            <a id="myProductsNav" href="#my-products" data-route="my-products">我的商品</a>
+            <a id="myTransactionsNav" href="#my-transactions" data-route="my-transactions">我的交易</a>
+            <a id="myFavoritesNav" href="#my-favorites" data-route="my-favorites">我的收藏</a>
+            <a id="messagesNav" href="#messages" data-route="messages">消息</a>
+            <a id="aiHistoryNav" href="#ai-history" data-route="ai-history">AI 记录</a>
+            <a id="adminNav" href="#admin" data-route="admin" hidden>管理后台</a>
+            <button id="logoutBtn" class="logout-button" type="button" hidden>退出登录</button>
+          </nav>
+        </details>
       </div>
     </header>
 
@@ -67,25 +79,6 @@
           </div>
         </section>
 
-        <section class="platform-strip" aria-label="平台能力概览">
-          <div>
-            <strong>8</strong>
-            <span>精选商品样例</span>
-          </div>
-          <div>
-            <strong>4</strong>
-            <span>校园交易品类</span>
-          </div>
-          <div>
-            <strong>SQL</strong>
-            <span>后续接入 SQL Server</span>
-          </div>
-          <div>
-            <strong>AI</strong>
-            <span>估价 / 验真 / 匹配</span>
-          </div>
-        </section>
-
         <section class="market-panel">
           <div class="section-head">
             <div>
@@ -100,8 +93,17 @@
               <button class="tab-button" data-filter="图书教材">教材</button>
             </div>
           </div>
+          <div id="marketStatus" class="page-state" role="status" aria-live="polite">正在加载商品...</div>
           <div id="marketGrid" class="market-grid"></div>
         </section>
+      </section>
+
+      <section class="page" id="page-detail" data-title="商品详情" data-kicker="校园好物档案">
+        <div class="detail-toolbar">
+          <button id="detailBackBtn" class="ghost-button" type="button">← 返回首页</button>
+        </div>
+        <div id="detailStatus" class="page-state" role="status" aria-live="polite">正在加载商品...</div>
+        <article id="detailContent" class="detail-layout" hidden></article>
       </section>
 
       <section class="page" id="page-estimate" data-title="智能估价" data-kicker="L1 参数库 + L2 成交拟合">
@@ -135,11 +137,11 @@
         </section>
       </section>
 
-      <section class="page" id="page-authenticity" data-title="真伪识别" data-kicker="图片 + 序列号 + 价格风险">
+      <section class="page" id="page-authenticity" data-title="真伪风险评估" data-kicker="商品信息 + 序列号 + 价格风险">
         <section class="tool-layout">
           <div class="tool-card">
-            <p class="kicker">真伪识别</p>
-            <h2>上传图片，补充序列号和卖家描述，生成可信度与验货清单。</h2>
+            <p class="kicker">真伪风险评估</p>
+            <h2>补充商品信息、序列号和卖家描述，由 AI 生成可信度与验货清单。</h2>
             <div class="auth-grid">
               <label class="auth-image">
                 <img id="authPreview" alt="真伪识别预览" src="https://images.unsplash.com/photo-1603891128711-11b4b03bb138?auto=format&fit=crop&w=900&q=80" />
@@ -214,6 +216,7 @@
             <div id="recognitionResult" class="tag-list"></div>
             <h2 id="listingTitle">等待生成</h2>
             <p id="listingDescription">点击“生成文案”或“发布商品”后，系统会生成标题、描述、估价和风控提示。</p>
+            <span id="listingProvider" class="ai-source-badge" hidden></span>
             <label class="seller-price-field">发布价格<input id="sellerPriceInput" type="number" min="1" step="1" placeholder="填写你的挂牌价" /></label>
             <div class="publish-actions">
               <button id="publishProductBtn">发布商品</button>
@@ -225,7 +228,13 @@
 
         <section class="dual-panels">
           <div class="mini-panel">
-            <p class="kicker">基础估价</p>
+            <div class="mini-panel-head">
+              <div>
+                <p class="kicker">AI 智能估价</p>
+                <span id="publishEstimateProvider" class="ai-source-badge" hidden></span>
+              </div>
+              <button type="button" id="publishEstimateBtn" class="compact-action">开始估价</button>
+            </div>
             <strong id="suggestedPrice">--</strong>
             <span id="priceRange">等待估价</span>
             <div id="priceReason" class="reason-list"></div>
@@ -250,27 +259,340 @@
         <div id="searchResults" class="result-list"></div>
       </section>
 
+      <section class="page" id="page-my-products" data-title="我的商品" data-kicker="卖家商品管理">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">卖家工作区</p>
+            <h2>管理我发布的商品</h2>
+            <p>商品状态以平台记录为准，编辑和下架成功后会自动刷新列表。</p>
+          </div>
+          <button id="myProductsPublishBtn" type="button">发布新商品</button>
+        </section>
+        <div id="myProductFilters" class="workspace-tabs" role="tablist" aria-label="商品状态筛选">
+          <button class="active" type="button" data-product-status="all" role="tab" aria-selected="true">全部</button>
+          <button type="button" data-product-status="on_sale" role="tab" aria-selected="false">在售</button>
+          <button type="button" data-product-status="reserved" role="tab" aria-selected="false">已预订</button>
+          <button type="button" data-product-status="sold" role="tab" aria-selected="false">已售出</button>
+          <button type="button" data-product-status="offline" role="tab" aria-selected="false">已下架</button>
+        </div>
+        <div id="myProductsStatus" class="page-state loading" role="status" aria-live="polite">正在加载我的商品...</div>
+        <div id="myProductsEmpty" class="workspace-empty" hidden>
+          <strong>还没有符合条件的商品</strong>
+          <p>发布第一件校园好物，或切换其他状态查看。</p>
+          <button id="emptyPublishBtn" type="button">去发布商品</button>
+        </div>
+        <div id="myProductsGrid" class="managed-product-grid"></div>
+      </section>
+
+      <section class="page" id="page-my-transactions" data-title="我的交易" data-kicker="买卖进度管理">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">交易工作区</p>
+            <h2>查看我参与的交易</h2>
+            <p>每次操作完成后会自动同步最新进度，买卖双方都能清楚看到当前交易状态。</p>
+          </div>
+        </section>
+        <div id="transactionRoleTabs" class="workspace-tabs" role="tablist" aria-label="交易角色筛选">
+          <button class="active" type="button" data-transaction-role="buyer" role="tab" aria-selected="true">我买到的</button>
+          <button type="button" data-transaction-role="seller" role="tab" aria-selected="false">我卖出的</button>
+        </div>
+        <div id="transactionsStatus" class="page-state loading" role="status" aria-live="polite">正在加载我的交易...</div>
+        <div id="transactionsEmpty" class="workspace-empty" hidden>
+          <strong>当前页签还没有交易</strong>
+          <p>预订商品或出售商品后，相关交易会显示在这里。</p>
+          <button id="emptyBrowseBtn" type="button">浏览商品</button>
+        </div>
+        <div id="transactionsList" class="transaction-list"></div>
+      </section>
+
+      <section class="page" id="page-my-favorites" data-title="我的收藏" data-kicker="校园好物收藏夹">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">收藏夹</p>
+            <h2>留住值得再看的校园好物</h2>
+            <p>收藏状态以平台记录为准。已售出或已下架的商品仍会保留在这里，但不能继续预订。</p>
+          </div>
+          <button id="favoritesBrowseBtn" type="button">继续浏览</button>
+        </section>
+        <div id="favoritesStatus" class="page-state loading" role="status" aria-live="polite">正在加载我的收藏...</div>
+        <div id="favoritesEmpty" class="workspace-empty" hidden>
+          <strong>收藏夹还是空的</strong>
+          <p>浏览商品详情，遇到喜欢的商品就先收藏起来。</p>
+          <button id="favoritesEmptyBrowseBtn" type="button">浏览商品</button>
+        </div>
+        <div id="favoritesGrid" class="favorite-grid"></div>
+      </section>
+
+      <section class="page" id="page-messages" data-title="站内消息" data-kicker="围绕商品安心沟通">
+        <section class="workspace-head message-workspace-head">
+          <div>
+            <p class="kicker">站内消息</p>
+            <h2>和买卖双方保持联系</h2>
+            <p>每段会话都绑定商品与对方账号，消息发送成功后会自动更新记录。</p>
+          </div>
+          <button id="messagesRefreshBtn" class="ghost-button" type="button">刷新会话</button>
+        </section>
+        <div id="messagesStatus" class="page-state loading" role="status" aria-live="polite">正在加载会话...</div>
+        <section id="messagesWorkspace" class="messages-workspace" hidden>
+          <aside id="conversationPanel" class="conversation-panel" aria-label="会话列表">
+            <div class="message-panel-title">
+              <div><span>会话列表</span><strong id="conversationCount">0 个会话</strong></div>
+            </div>
+            <div id="conversationEmpty" class="message-empty" hidden>暂时没有站内消息。</div>
+            <div id="conversationList" class="conversation-list"></div>
+          </aside>
+          <section id="messageThreadPanel" class="message-thread-panel" aria-label="消息记录">
+            <button id="messagesBackBtn" class="ghost-button messages-back" type="button">← 返回会话</button>
+            <div id="messageThreadEmpty" class="message-thread-empty">
+              <strong>选择一段会话</strong>
+              <p>从左侧选择商品和联系人，即可查看消息记录。</p>
+            </div>
+            <div id="activeMessageThread" hidden>
+              <header class="message-thread-head">
+                <img id="messageProductImage" alt="会话商品图" />
+                <div><span id="messagePeerName">校园同学</span><strong id="messageProductName">商品</strong></div>
+              </header>
+              <div id="messageList" class="message-list" aria-live="polite"></div>
+              <form id="messageForm" class="message-form" novalidate>
+                <label for="messageInput">发送消息</label>
+                <textarea id="messageInput" rows="3" maxlength="1000" placeholder="询问成色、配件或约定当面验货..." required></textarea>
+                <div class="message-form-footer">
+                  <span id="messageInputCount">0 / 1000</span>
+                  <button id="messageSendBtn" type="submit">发送</button>
+                </div>
+                <small id="messageSendStatus" role="status" aria-live="polite"></small>
+              </form>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section class="page" id="page-ai-history" data-title="AI 记录" data-kicker="估价与风险评估档案">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">AI 历史记录</p>
+            <h2>回看每一次估价与风险判断</h2>
+            <p>记录仅来自当前登录账号，清楚标注 DeepSeek 与本地回退结果。</p>
+          </div>
+        </section>
+        <div id="aiHistoryTabs" class="workspace-tabs" role="tablist" aria-label="AI 报告类型筛选">
+          <button class="active" type="button" data-ai-report-type="all" role="tab" aria-selected="true">全部</button>
+          <button type="button" data-ai-report-type="price" role="tab" aria-selected="false">智能估价</button>
+          <button type="button" data-ai-report-type="risk" role="tab" aria-selected="false">风险评估</button>
+        </div>
+        <div id="aiHistoryStatus" class="page-state loading" role="status" aria-live="polite">正在加载 AI 记录...</div>
+        <div id="aiHistoryEmpty" class="workspace-empty" hidden>
+          <strong>当前类型还没有 AI 记录</strong>
+          <p>完成智能估价或真伪风险评估后，相关记录会显示在这里。</p>
+        </div>
+        <div id="aiHistoryList" class="ai-history-list"></div>
+      </section>
+
+      <section class="page" id="page-account-settings" data-title="账户设置" data-kicker="个人资料与安全">
+        <section class="workspace-head">
+          <div>
+            <p class="kicker">账户设置</p>
+            <h2>管理个人资料与账户安全</h2>
+            <p>资料更新后会同步到当前会话；修改密码或注销账户后需要重新登录。</p>
+          </div>
+        </section>
+        <div class="workspace-tabs" role="tablist" aria-label="账户设置分类">
+          <button class="active" type="button" data-account-tab="profile" role="tab" aria-selected="true">个人资料</button>
+          <button type="button" data-account-tab="password" role="tab" aria-selected="false">修改密码</button>
+          <button type="button" data-account-tab="security" role="tab" aria-selected="false">账户安全</button>
+        </div>
+        <div id="accountPageStatus" class="page-state" role="status" aria-live="polite" hidden></div>
+
+        <section id="accountProfilePanel" class="settings-panel">
+          <form id="profileForm" class="settings-form" novalidate>
+            <div class="settings-heading"><span>PROFILE</span><h3>个人资料</h3></div>
+            <label>昵称<input id="profileNameInput" maxlength="50" required /></label>
+            <label>校区<input id="profileCampusInput" maxlength="50" required /></label>
+            <button id="profileSubmitBtn" type="submit">保存资料</button>
+            <small id="profileStatus" class="auth-status" role="status" aria-live="polite"></small>
+          </form>
+        </section>
+
+        <section id="accountPasswordPanel" class="settings-panel" hidden>
+          <form id="passwordForm" class="settings-form" novalidate>
+            <div class="settings-heading"><span>SECURITY</span><h3>修改密码</h3></div>
+            <label>当前密码<input id="currentPasswordInput" type="password" autocomplete="current-password" required /></label>
+            <label>新密码<input id="newPasswordInput" type="password" autocomplete="new-password" minlength="8" placeholder="至少 8 个字符" required /></label>
+            <label>确认新密码<input id="confirmNewPasswordInput" type="password" autocomplete="new-password" minlength="8" required /></label>
+            <button id="passwordSubmitBtn" type="submit">确认修改密码</button>
+            <small id="passwordStatus" class="auth-status" role="status" aria-live="polite"></small>
+          </form>
+        </section>
+
+        <section id="accountSecurityPanel" class="settings-panel" hidden>
+          <div class="danger-zone">
+            <div><span>DANGER ZONE</span><h3>注销账户</h3><p>账户注销后不能恢复。若仍有待处理交易，系统会拒绝注销并提示先完成交易。</p></div>
+            <button id="openDeleteAccountBtn" class="danger-button" type="button">注销我的账户</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="page-admin" data-title="管理后台" data-kicker="平台运营与风险审核">
+        <section class="workspace-head admin-head">
+          <div><p class="kicker">管理员工作台</p><h2>平台运营与风险审核</h2><p>集中查看用户、商品、风险记录和管理员操作日志。</p></div>
+          <button id="adminRefreshBtn" class="ghost-button" type="button">刷新当前数据</button>
+        </section>
+        <div id="adminPageStatus" class="page-state" role="status" aria-live="polite" hidden></div>
+        <div class="admin-layout">
+          <nav class="admin-sidebar" aria-label="管理后台分类">
+            <button class="active" type="button" data-admin-tab="overview">数据概览</button>
+            <button type="button" data-admin-tab="users">用户管理</button>
+            <button type="button" data-admin-tab="products">商品管理</button>
+            <button type="button" data-admin-tab="risks">风险审核</button>
+            <button type="button" data-admin-tab="logs">操作日志</button>
+          </nav>
+          <div class="admin-content">
+            <section id="adminOverviewPanel" class="admin-panel"><div id="adminOverviewGrid" class="admin-metric-grid"></div></section>
+            <section id="adminUsersPanel" class="admin-panel" hidden>
+              <form id="adminUsersFilter" class="admin-filter"><input id="adminUserQuery" placeholder="搜索账号、昵称或校区" /><select id="adminUserStatus"><option value="">全部状态</option><option value="active">正常</option><option value="disabled">已禁用</option><option value="deleted">已注销</option></select><button type="submit">查询</button></form>
+              <div id="adminUsersList" class="admin-table-wrap"></div>
+            </section>
+            <section id="adminProductsPanel" class="admin-panel" hidden>
+              <form id="adminProductsFilter" class="admin-filter"><input id="adminProductQuery" placeholder="搜索商品或卖家" /><select id="adminProductStatus"><option value="">全部状态</option><option value="on_sale">在售</option><option value="reserved">已预订</option><option value="sold">已售出</option><option value="offline">已下架</option></select><button type="submit">查询</button></form>
+              <div id="adminProductsList" class="admin-table-wrap"></div>
+            </section>
+            <section id="adminRisksPanel" class="admin-panel" hidden>
+              <form id="adminRisksFilter" class="admin-filter"><select id="adminRiskStatus"><option value="">全部审核状态</option><option value="pending">待审核</option><option value="confirmed">已确认</option><option value="false_positive">误报</option><option value="resolved">已处理</option></select><select id="adminRiskLevel"><option value="">全部风险等级</option><option value="high">高风险</option><option value="medium">中风险</option><option value="low">低风险</option></select><button type="submit">查询</button></form>
+              <div id="adminRisksList" class="admin-table-wrap"></div>
+            </section>
+            <section id="adminLogsPanel" class="admin-panel" hidden><div id="adminLogsList" class="admin-table-wrap"></div></section>
+          </div>
+        </div>
+      </section>
+
       <section class="page" id="page-login" data-title="登录后发布商品" data-kicker="用户入口">
         <section class="login-layout">
-          <div class="login-hero">
-            <p class="kicker">轻量登录</p>
-            <h2>用昵称和校区创建演示账号。</h2>
-            <p>课程演示版只用于绑定发布商品，不做密码和真实身份认证。</p>
-          </div>
-          <form class="tool-card" id="loginForm">
-            <label>昵称<input id="loginNameInput" value="林同学" /></label>
-            <label>校区<input id="loginCampusInput" value="南校区" /></label>
-            <small id="loginStatus" class="save-status"></small>
+          <div class="tool-card account-card">
+            <header class="account-heading">
+              <p class="kicker">校园账户</p>
+              <h2>登录 CampusLoop</h2>
+            </header>
+            <div class="auth-tabs" role="tablist" aria-label="账户操作">
+              <button id="loginTab" class="active" type="button" role="tab" aria-selected="true" aria-controls="loginForm">登录</button>
+              <button id="registerTab" type="button" role="tab" aria-selected="false" aria-controls="registerForm">注册</button>
+            </div>
+
+            <form class="auth-form" id="loginForm" novalidate>
+              <label>登录账号
+                <input id="loginNameInput" name="loginName" autocomplete="username" minlength="4" maxlength="30" placeholder="4-30 位字母、数字或下划线" required />
+              </label>
+              <label>密码
+                <span class="password-field">
+                  <input id="loginPasswordInput" name="password" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 个字符" required />
+                  <button class="password-toggle" type="button" data-password-target="loginPasswordInput" aria-label="显示登录密码">显示</button>
+                </span>
+              </label>
+              <button id="loginSubmitBtn" class="login-submit" type="submit">登录</button>
+              <button class="auth-switch-link" type="button" data-auth-mode="register">没有账号？立即注册</button>
+            </form>
+
+            <form class="auth-form" id="registerForm" novalidate hidden>
+              <label>登录账号
+                <input id="registerLoginNameInput" name="loginName" autocomplete="username" minlength="4" maxlength="30" placeholder="4-30 位字母、数字或下划线" required />
+              </label>
+              <label>昵称<input id="registerNameInput" name="name" autocomplete="nickname" maxlength="40" placeholder="例如：张同学" required /></label>
+              <label>校区<input id="registerCampusInput" name="campus" maxlength="50" placeholder="例如：南校区" required /></label>
+              <label>密码
+                <span class="password-field">
+                  <input id="registerPasswordInput" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="至少 6 个字符" required />
+                  <button class="password-toggle" type="button" data-password-target="registerPasswordInput" aria-label="显示注册密码">显示</button>
+                </span>
+              </label>
+              <label>确认密码
+                <span class="password-field">
+                  <input id="registerConfirmInput" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" placeholder="再次输入密码" required />
+                  <button class="password-toggle" type="button" data-password-target="registerConfirmInput" aria-label="显示确认密码">显示</button>
+                </span>
+              </label>
+              <button id="registerSubmitBtn" class="login-submit" type="submit">注册</button>
+              <button class="auth-switch-link" type="button" data-auth-mode="login">已有账号？返回登录</button>
+            </form>
+
+            <small id="loginStatus" class="auth-status" role="status" aria-live="polite"></small>
             <div class="current-user-card">
               <span>当前用户</span>
               <strong id="currentUserText">未登录</strong>
             </div>
-            <button class="login-submit" type="submit">登录并继续发布</button>
-          </form>
+          </div>
         </section>
       </section>
     </main>
 
-    <script src="/app.js?v=20260708-merge"></script>
+    <dialog id="successDialog" class="success-dialog" aria-labelledby="successDialogMessage">
+      <p id="successDialogMessage">登录成功</p>
+      <button id="successDialogConfirm" type="button">确认</button>
+    </dialog>
+
+    <dialog id="editProductDialog" class="form-dialog" aria-labelledby="editProductTitle">
+      <form id="editProductForm" novalidate>
+        <div class="dialog-heading">
+          <p class="kicker">编辑在售商品</p>
+          <h2 id="editProductTitle">修改商品信息</h2>
+        </div>
+        <label>商品名称<input id="editProductName" maxlength="120" required /></label>
+        <label>商品描述<textarea id="editProductDescription" maxlength="800" rows="5"></textarea></label>
+        <label>商品价格<input id="editProductPrice" type="number" min="0.01" step="0.01" required /></label>
+        <small id="editProductStatus" class="dialog-status" role="status" aria-live="polite"></small>
+        <div class="dialog-actions">
+          <button id="editProductCancel" class="ghost-button" type="button">取消</button>
+          <button id="editProductSubmit" type="submit">保存修改</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmDialogMessage">
+      <p id="confirmDialogMessage">确认执行此操作吗？</p>
+      <div class="dialog-actions">
+        <button id="confirmDialogCancel" class="ghost-button" type="button">取消</button>
+        <button id="confirmDialogSubmit" type="button">确认</button>
+      </div>
+    </dialog>
+
+    <dialog id="deleteAccountDialog" class="form-dialog" aria-labelledby="deleteAccountTitle">
+      <form id="deleteAccountForm" novalidate>
+        <div class="dialog-heading"><p class="kicker">最终确认</p><h2 id="deleteAccountTitle">输入密码注销账户</h2></div>
+        <p>此操作不可恢复。系统确认没有待处理交易后才会完成注销。</p>
+        <label>当前密码<input id="deleteAccountPassword" type="password" autocomplete="current-password" required /></label>
+        <small id="deleteAccountStatus" class="dialog-status" role="status" aria-live="polite"></small>
+        <div class="dialog-actions"><button id="deleteAccountCancel" class="ghost-button" type="button">取消</button><button id="deleteAccountSubmit" class="danger-button" type="submit">确认注销</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="adminActionDialog" class="form-dialog" aria-labelledby="adminActionTitle">
+      <form id="adminActionForm" novalidate>
+        <div class="dialog-heading"><p class="kicker">管理员操作</p><h2 id="adminActionTitle">确认操作</h2></div>
+        <p id="adminActionDescription"></p>
+        <label id="adminReviewStatusField" hidden>审核结论<select id="adminReviewStatus"><option value="confirmed">确认风险</option><option value="false_positive">标记误报</option><option value="resolved">已处理</option></select></label>
+        <label><span id="adminActionReasonLabel">操作原因</span><textarea id="adminActionReason" maxlength="500" rows="4" required></textarea></label>
+        <small id="adminActionStatus" class="dialog-status" role="status" aria-live="polite"></small>
+        <div class="dialog-actions"><button id="adminActionCancel" class="ghost-button" type="button">取消</button><button id="adminActionSubmit" type="submit">确认提交</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="disputeDialog" class="form-dialog dispute-dialog" aria-labelledby="disputeDialogTitle">
+      <form id="disputeForm" novalidate>
+        <div class="dialog-heading">
+          <p class="kicker">交易争议</p>
+          <h2 id="disputeDialogTitle">说明需要协助的问题</h2>
+        </div>
+        <p>交易商品：<strong id="disputeProductName">当前交易</strong></p>
+        <label>争议原因
+          <textarea id="disputeReasonInput" maxlength="500" rows="6" placeholder="请具体说明商品、价格或当面交易中遇到的问题" required></textarea>
+        </label>
+        <div class="dispute-form-meta"><small id="disputeReasonCount">0 / 500</small><small id="disputeStatus" class="dialog-status" role="status" aria-live="polite"></small></div>
+        <div class="dialog-actions">
+          <button id="disputeCancelBtn" class="ghost-button" type="button">取消</button>
+          <button id="disputeSubmitBtn" type="submit">提交争议</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/search-matching.js?v=20260711-precise-search"></script>
+    <script src="/app.js?v=20260713-transaction-workflow"></script>
   </body>
 </html>

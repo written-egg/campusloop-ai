@@ -8,5 +8,15 @@
   { "category": "生活用品", "model": "宿舍小冰箱", "price": 310, "condition": "九成新", "soldAt": "2026-05-29" },
   { "category": "生活用品", "model": "护眼台灯", "price": 118, "condition": "九成新", "soldAt": "2026-06-04" },
   { "category": "图书教材", "model": "高数教材套装", "price": 48, "condition": "八成新", "soldAt": "2026-06-01" },
-  { "category": "图书教材", "model": "考研英语资料", "price": 92, "condition": "八成新", "soldAt": "2026-06-08" }
+  { "category": "图书教材", "model": "考研英语资料", "price": 92, "condition": "八成新", "soldAt": "2026-06-08" },
+  { "category": "校园交通", "model": "雅迪校园电动车", "price": 1680, "condition": "九成新", "soldAt": "2026-06-03" },
+  { "category": "校园交通", "model": "雅迪校园电动车", "price": 1450, "condition": "八成新", "soldAt": "2026-06-10" },
+  { "category": "校园交通", "model": "九号电动滑板车", "price": 1280, "condition": "八成新", "soldAt": "2026-06-06" },
+  { "category": "校园交通", "model": "捷安特山地车", "price": 980, "condition": "八成新", "soldAt": "2026-06-11" },
+  { "category": "服饰鞋包", "model": "Nike Air Force 1", "price": 350, "condition": "八成新", "soldAt": "2026-06-04" },
+  { "category": "服饰鞋包", "model": "Uniqlo 轻型羽绒服", "price": 260, "condition": "九成新", "soldAt": "2026-06-12" },
+  { "category": "乐器音频", "model": "Yamaha F310 吉他", "price": 620, "condition": "九成新", "soldAt": "2026-06-05" },
+  { "category": "乐器音频", "model": "Focusrite Solo 声卡", "price": 520, "condition": "九成新", "soldAt": "2026-06-13" },
+  { "category": "美妆个护", "model": "Dyson Supersonic 吹风机", "price": 1480, "condition": "八成新", "soldAt": "2026-06-07" },
+  { "category": "美妆个护", "model": "Braun 电动剃须刀", "price": 480, "condition": "八成新", "soldAt": "2026-06-14" }
 ]

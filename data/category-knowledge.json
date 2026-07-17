@@ -39,5 +39,49 @@
       { "model": "宿舍小冰箱", "basePrice": 699, "retention": 0.45 },
       { "model": "护眼台灯", "basePrice": 299, "retention": 0.42 }
     ]
+  },
+  {
+    "category": "校园交通",
+    "aliases": ["电动车", "电动自行车", "自行车", "山地车", "电动滑板车", "代步车"],
+    "requiredAttributes": ["品牌", "型号", "购买年份", "续航", "电池状态", "里程", "充电器", "车况"],
+    "commonBrands": ["Yadea", "Aima", "Ninebot", "Xiaomi", "Giant", "Merida"],
+    "baselineModels": [
+      { "model": "雅迪校园电动车", "basePrice": 2999, "retention": 0.56 },
+      { "model": "九号电动滑板车", "basePrice": 2499, "retention": 0.52 },
+      { "model": "捷安特山地车", "basePrice": 2198, "retention": 0.5 }
+    ]
+  },
+  {
+    "category": "服饰鞋包",
+    "aliases": ["外套", "卫衣", "裙子", "球鞋", "运动鞋", "背包", "箱包"],
+    "requiredAttributes": ["品牌", "尺码", "颜色", "购买年份", "穿着次数", "瑕疵", "清洁情况"],
+    "commonBrands": ["Nike", "Adidas", "Uniqlo", "New Balance", "Converse"],
+    "baselineModels": [
+      { "model": "Nike Air Force 1", "basePrice": 799, "retention": 0.46 },
+      { "model": "Uniqlo 轻型羽绒服", "basePrice": 599, "retention": 0.42 },
+      { "model": "校园通勤双肩包", "basePrice": 399, "retention": 0.4 }
+    ]
+  },
+  {
+    "category": "乐器音频",
+    "aliases": ["吉他", "尤克里里", "键盘", "电钢琴", "效果器", "麦克风", "声卡"],
+    "requiredAttributes": ["品牌", "型号", "购买年份", "功能状态", "维修情况", "配件", "外观成色"],
+    "commonBrands": ["Yamaha", "Fender", "Roland", "Casio", "Focusrite"],
+    "baselineModels": [
+      { "model": "Yamaha F310 吉他", "basePrice": 1099, "retention": 0.55 },
+      { "model": "Casio 入门电钢琴", "basePrice": 2699, "retention": 0.52 },
+      { "model": "Focusrite Solo 声卡", "basePrice": 899, "retention": 0.58 }
+    ]
+  },
+  {
+    "category": "美妆个护",
+    "aliases": ["香水", "护肤", "彩妆", "美容仪", "吹风机", "剃须刀"],
+    "requiredAttributes": ["品牌", "规格", "购买日期", "剩余容量", "保质期", "密封情况", "使用次数"],
+    "commonBrands": ["Dyson", "Philips", "Braun", "L'Oreal", "Estee Lauder"],
+    "baselineModels": [
+      { "model": "Dyson Supersonic 吹风机", "basePrice": 2999, "retention": 0.5 },
+      { "model": "Braun 电动剃须刀", "basePrice": 1299, "retention": 0.42 },
+      { "model": "未拆封品牌香水", "basePrice": 699, "retention": 0.48 }
+    ]
   }
 ]
