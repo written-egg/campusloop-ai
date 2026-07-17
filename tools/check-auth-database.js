@@ -13,7 +13,7 @@ async function main() {
       (SELECT COUNT(*) FROM sys.procedures
        WHERE schema_id = SCHEMA_ID('dbo') AND name IN ('CreateOrGetUser', 'CreateProduct', 'CreateTransaction')) AS CoreProcedures,
       (SELECT COUNT(*) FROM sys.triggers
-       WHERE parent_class = 1 AND name IN ('TR_Transactions_UpdateProductStatus', 'TR_Products_LogAbnormalPrice')) AS CoreTriggers,
+       WHERE parent_class = 1 AND name IN ('TR_Transactions_UpdateProductStatus', 'TR_Products_LogPublishingRisks')) AS CoreTriggers,
       (SELECT COUNT(*) FROM dbo.Users) AS UserCount,
       (SELECT COUNT(*) FROM dbo.Products) AS ProductCount,
       (SELECT COUNT(*) FROM dbo.ProductImages) AS ProductImageCount;

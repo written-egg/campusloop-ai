@@ -422,6 +422,11 @@ label {
 .primary-action {
   color: #f7f7f0;
   background: var(--ink);
+  box-shadow: 4px 5px 0 rgba(137, 162, 54, 0.62);
+}
+
+.primary-action:hover {
+  box-shadow: 6px 8px 0 rgba(137, 162, 54, 0.72);
 }
 
 .primary-action span {
@@ -1069,6 +1074,13 @@ label {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.managed-action-note {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .danger-button {
@@ -1828,6 +1840,45 @@ label {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
+}
+
+.mini-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mini-panel-head > div {
+  display: grid;
+  gap: 7px;
+}
+
+.compact-action {
+  width: auto;
+  min-height: 42px;
+  padding: 9px 16px;
+  font-size: 14px;
+}
+
+.ai-source-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ai-source-badge.deepseek {
+  color: #476400;
+  background: rgba(214, 255, 69, 0.22);
+}
+
+.ai-source-badge[hidden] {
+  display: none;
 }
 
 .save-status {

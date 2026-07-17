@@ -3,7 +3,7 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.SearchMatching = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function createSearchMatching() {
-  const categoryNames = new Set(["数码电子", "运动户外", "生活用品", "图书教材", "其他", "不限"]);
+  const categoryNames = new Set(["数码电子", "运动户外", "生活用品", "图书教材", "校园交通", "服饰鞋包", "乐器音频", "美妆个护", "其他", "不限"]);
 
   function normalize(value) {
     return String(value || "").trim().toLowerCase();
@@ -41,6 +41,7 @@
     const similarRecommendations = [];
 
     products.forEach((item) => {
+      if (item.status && item.status !== "on_sale") return;
       const text = productText(item);
       const matchedTerms = terms.filter((term) => text.name.includes(term) || text.tags.includes(term) || text.description.includes(term));
       const categoryMatch = categoryIntent && categoryIntent !== "不限" && normalize(item.category).includes(categoryIntent);

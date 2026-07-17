@@ -14,7 +14,12 @@ async function request(path, { method = "GET", body, token = "" } = {}) {
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
   });
-  return { status: response.status, body: await response.json() };
+  const text = await response.text();
+  try {
+    return { status: response.status, body: JSON.parse(text) };
+  } catch {
+    throw new Error(`${method} ${path} returned non-JSON status ${response.status}: ${text.slice(0, 80)}`);
+  }
 }
 
 async function register(role, suffix) {
@@ -67,7 +72,8 @@ async function main() {
     const productToCancel = await createProduct(seller, "待取消交易商品");
     const productToDispute = await createProduct(seller, "待争议交易商品");
     const productToOffline = await createProduct(seller, "待下架商品");
-    productIds.push(productToFinish.id, productToCancel.id, productToDispute.id, productToOffline.id);
+    const productToDelete = await createProduct(seller, "待删除商品");
+    productIds.push(productToFinish.id, productToCancel.id, productToDispute.id, productToOffline.id, productToDelete.id);
 
     const initialSellerProducts = await request("/api/my/products", { token: seller.sessionToken });
     const initialBuyerProducts = await request("/api/my/products", { token: buyer.sessionToken });
@@ -112,6 +118,16 @@ async function main() {
       method: "POST",
       token: seller.sessionToken
     });
+    const relisted = await request(`/api/my/products/${productToOffline.id}/relist`, {
+      method: "POST",
+      token: seller.sessionToken
+    });
+    const offlineAgain = await request(`/api/my/products/${productToOffline.id}/off-shelf`, {
+      method: "POST",
+      token: seller.sessionToken
+    });
+    await request(`/api/my/products/${productToDelete.id}/off-shelf`, { method: "POST", token: seller.sessionToken });
+    const deleted = await request(`/api/my/products/${productToDelete.id}`, { method: "DELETE", token: seller.sessionToken });
     const confirmed = await request(`/api/transactions/${reservedForFinish.body.data?.id}/confirm`, {
       method: "POST",
       token: seller.sessionToken
@@ -214,6 +230,8 @@ async function main() {
       sellerCannotReserveOwnProduct: selfReserve.status === 400,
       otherUserCannotTakeOffline: unauthorizedOffline.status === 403,
       ownerCanTakeOffline: offline.status === 200 && offline.body.data?.status === "offline",
+      ownerCanRelist: relisted.status === 200 && relisted.body.data?.status === "on_sale" && offlineAgain.status === 200,
+      ownerCanDeleteOfflineRecord: deleted.status === 200 && deleted.body.data?.deleted === true,
       reserveCreatesPendingTrade: reservedForFinish.status === 200 && reservedForFinish.body.data?.status === "pending",
       duplicateReserveRejected: duplicateReserve.status === 409,
       transactionRoles:

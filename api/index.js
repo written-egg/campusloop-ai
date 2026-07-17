@@ -157,7 +157,8 @@ const apiHandlers = {
   "/api/generate-listing": async (body) => {
     const schema = '{"title":string,"description":string,"sellingPoints":string[]}';
     const prompt = `根据商品信息生成校园二手发布文案：${JSON.stringify(body)}`;
-    return (await callDeepSeek([{ role: "user", content: prompt }], schema)) || fallbackListing(body);
+    const aiResult = await callDeepSeek([{ role: "user", content: prompt }], schema);
+    return aiResult ? { ...aiResult, provider: "deepseek" } : { ...fallbackListing(body), provider: "local-fallback" };
   },
   "/api/extract-attributes": async (body) => {
     const schema = '{"category":string,"brand":string,"model":string,"condition":string,"features":string[]}';

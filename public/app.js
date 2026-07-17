@@ -796,6 +796,13 @@ function renderMyProducts() {
               <button class="ghost-button" type="button" data-product-action="edit" data-id="${escapeText(item.id)}">编辑</button>
               <button class="danger-button" type="button" data-product-action="offline" data-id="${escapeText(item.id)}">下架</button>
             </div>
+          ` : item.status === "offline" ? `
+            <div class="managed-product-actions">
+              ${item.moderationStatus === "admin_offline"
+                ? '<span class="managed-action-note">管理员下架，需审核后恢复</span>'
+                : `<button type="button" data-product-action="relist" data-id="${escapeText(item.id)}">重新上架</button>`}
+              <button class="danger-button" type="button" data-product-action="delete" data-id="${escapeText(item.id)}">删除记录</button>
+            </div>
           ` : ""}
         </article>
       `
@@ -821,6 +828,8 @@ function renderMyProducts() {
     button.addEventListener("click", () => {
       if (button.dataset.productAction === "edit") openEditProduct(button.dataset.id);
       if (button.dataset.productAction === "offline") takeProductOffline(button.dataset.id, button);
+      if (button.dataset.productAction === "relist") relistProduct(button.dataset.id, button);
+      if (button.dataset.productAction === "delete") deleteOfflineProduct(button.dataset.id, button);
     });
   });
 }
@@ -1715,6 +1724,88 @@ function renderPrice(price) {
   $("priceReason").innerHTML = price.reasons.map((item) => `<div>${escapeText(item)}</div>`).join("");
 }
 
+async function relistProduct(id, button) {
+  button.disabled = true;
+  button.textContent = "正在上架...";
+  try {
+    await postJson(`/api/my/products/${encodeURIComponent(id)}/relist`, {}, authHeaders());
+    await Promise.all([refreshMyProducts(), refreshProducts()]);
+    await showSuccessDialog("重新上架成功");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    setWorkspaceStatus("myProductsStatus", marketplaceErrorMessage(error, "重新上架失败，请稍后重试。"), "error");
+    await refreshMyProducts({ quiet: true });
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = "重新上架";
+    }
+  }
+}
+
+async function deleteOfflineProduct(id, button) {
+  const product = state.myProducts.find((item) => String(item.id) === String(id));
+  if (!product) return;
+  const confirmed = await showConfirmDialog(`确认删除“${product.name}”的商品记录吗？此操作无法撤销。`, "确认删除");
+  if (!confirmed) return;
+  button.disabled = true;
+  button.textContent = "正在删除...";
+  try {
+    await deleteJson(`/api/my/products/${encodeURIComponent(id)}`, authHeaders());
+    await Promise.all([refreshMyProducts(), refreshProducts()]);
+    await showSuccessDialog("商品记录已删除");
+  } catch (error) {
+    if (handleExpiredMarketplaceSession(error)) return;
+    setWorkspaceStatus("myProductsStatus", marketplaceErrorMessage(error, "删除失败，请稍后重试。"), "error");
+    await refreshMyProducts({ quiet: true });
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.textContent = "删除记录";
+    }
+  }
+}
+
+function setPublishEstimateSource(provider) {
+  const badge = $("publishEstimateProvider");
+  badge.hidden = !provider;
+  badge.textContent = provider === "deepseek" ? "DeepSeek AI" : "本地估价";
+  badge.classList.toggle("deepseek", provider === "deepseek");
+}
+
+async function estimatePublishPrice() {
+  state.recognition = recognizeFromForm();
+  renderRecognition(state.recognition);
+  const localPrice = estimatePriceFrom(state.recognition);
+  const button = $("publishEstimateBtn");
+  button.disabled = true;
+  button.textContent = "估价中";
+  $("suggestedPrice").textContent = "AI 分析中...";
+  try {
+    const response = await postJson("/api/ai/estimate", {
+      category: state.recognition.category,
+      model: state.recognition.model,
+      condition: state.recognition.condition,
+      accessory: "full",
+      userExternalId: state.currentUser?.id || null,
+      localEstimate: localPrice
+    }, authHeaders());
+    state.latestPrice = response.data || localPrice;
+    renderPrice(state.latestPrice);
+    setPublishEstimateSource(state.latestPrice.provider || "local-fallback");
+    runRiskCheck(state.listing, state.latestPrice);
+  } catch (error) {
+    state.latestPrice = localPrice;
+    renderPrice(state.latestPrice);
+    setPublishEstimateSource("local-fallback");
+    $("priceReason").insertAdjacentHTML("beforeend", `<div>${escapeText(apiErrorMessage(error, "AI 暂不可用，已使用本地估价。"))}</div>`);
+    runRiskCheck(state.listing, state.latestPrice);
+  } finally {
+    button.disabled = false;
+    button.textContent = "重新估价";
+  }
+}
+
 async function renderEstimate() {
   const localPrice = estimatePriceFrom({
     category: $("estimateCategory").value,
@@ -1806,9 +1897,16 @@ async function generateListing() {
     state.listing = listingResponse.data || fallbackListing(state.recognition);
     $("listingTitle").textContent = state.listing.title;
     $("listingDescription").textContent = state.listing.description;
-    state.latestPrice = estimatePriceFrom(state.recognition);
-    renderPrice(state.latestPrice);
-    runRiskCheck(state.listing, state.latestPrice);
+    const provider = state.listing.provider || "local-fallback";
+    const badge = $("listingProvider");
+    badge.hidden = false;
+    badge.textContent = provider === "deepseek" ? "DeepSeek AI 文案" : "本地模板文案";
+    badge.classList.toggle("deepseek", provider === "deepseek");
+    await estimatePublishPrice();
+  } catch (error) {
+    $("listingTitle").textContent = "文案生成失败";
+    $("listingDescription").textContent = apiErrorMessage(error, "请稍后重试。");
+    $("listingProvider").hidden = true;
   } finally {
     $("generateBtn").disabled = false;
     $("generateBtn").textContent = "生成文案";
@@ -1989,6 +2087,14 @@ async function semanticSearch() {
   if (!query) {
     $("intentBox").innerHTML = "";
     renderSearchResults([]);
+    return;
+  }
+  try {
+    const productsResponse = await getJson("/api/products");
+    state.products = mergeProducts(productsResponse.data || []);
+  } catch (error) {
+    $("intentBox").innerHTML = "";
+    $("searchResults").innerHTML = `<div class="page-state error">${escapeText(apiErrorMessage(error, "暂时无法获取最新在售商品，请稍后重试。"))}</div>`;
     return;
   }
   let intent = localSearchIntent(query);
@@ -2560,6 +2666,7 @@ function setupEvents() {
   $("authCheckBtn").addEventListener("click", runAuthenticityCheck);
   $("generateBtn").addEventListener("click", generateListing);
   $("generateBtnSecondary").addEventListener("click", generateListing);
+  $("publishEstimateBtn").addEventListener("click", estimatePublishPrice);
   $("publishProductBtn").addEventListener("click", saveCurrentProduct);
   $("searchBtn").addEventListener("click", semanticSearch);
   $("searchInput").addEventListener("keydown", (event) => {

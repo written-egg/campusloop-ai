@@ -368,7 +368,8 @@ const apiHandlers = {
   "/api/generate-listing": async (body) => {
     const schema = '{"title":string,"description":string,"sellingPoints":string[]}';
     const prompt = `根据商品信息生成校园二手发布文案：${JSON.stringify(body)}`;
-    return (await callDeepSeek([{ role: "user", content: prompt }], schema)) || fallbackListing(body);
+    const aiResult = await callDeepSeek([{ role: "user", content: prompt }], schema);
+    return aiResult ? { ...aiResult, provider: "deepseek" } : { ...fallbackListing(body), provider: "local-fallback" };
   },
   "/api/extract-attributes": async (body) => {
     const schema = '{"category":string,"brand":string,"model":string,"condition":string,"features":string[]}';
@@ -498,6 +499,7 @@ http
     }
     const ownProductMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)$/);
     const offShelfMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)\/off-shelf$/);
+    const relistMatch = url.pathname.match(/^\/api\/my\/products\/([^/]+)\/relist$/);
     const reserveMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/reserve$/);
     const transactionActionMatch = url.pathname.match(/^\/api\/transactions\/(\d+)\/(confirm|finish|cancel|dispute)$/);
     const favoriteMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/favorite$/);
@@ -506,8 +508,8 @@ http
       (req.method === "GET" && ["/api/my/products", "/api/my/transactions", "/api/my/favorites", "/api/my/conversations", "/api/messages", "/api/my/ai-reports"].includes(url.pathname)) ||
       (req.method === "PATCH" && Boolean(ownProductMatch)) ||
       (req.method === "PATCH" && Boolean(messageReadMatch)) ||
-      (req.method === "POST" && (url.pathname === "/api/messages" || Boolean(offShelfMatch || reserveMatch || transactionActionMatch || favoriteMatch))) ||
-      (req.method === "DELETE" && Boolean(favoriteMatch));
+      (req.method === "POST" && (url.pathname === "/api/messages" || Boolean(offShelfMatch || relistMatch || reserveMatch || transactionActionMatch || favoriteMatch))) ||
+      (req.method === "DELETE" && Boolean(favoriteMatch || ownProductMatch));
 
     if (isMarketplaceApi) {
       try {
@@ -537,6 +539,10 @@ http
           data = await sqlStore.removeFavorite(userId, decodeURIComponent(favoriteMatch[1]));
         } else if (offShelfMatch) {
           data = await sqlStore.takeOwnProductOffline(userId, decodeURIComponent(offShelfMatch[1]));
+        } else if (relistMatch) {
+          data = await sqlStore.restoreOwnProduct(userId, decodeURIComponent(relistMatch[1]));
+        } else if (req.method === "DELETE" && ownProductMatch) {
+          data = await sqlStore.deleteOwnOfflineProduct(userId, decodeURIComponent(ownProductMatch[1]));
         } else if (reserveMatch) {
           data = await sqlStore.reserveProduct(userId, decodeURIComponent(reserveMatch[1]));
         } else if (transactionActionMatch) {

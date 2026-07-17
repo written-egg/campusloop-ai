@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260713-transaction-workflow" />
+    <link rel="stylesheet" href="/styles.css?v=20260716-primary-shadow" />
   </head>
   <body>
     <header class="site-header">
@@ -216,6 +216,7 @@
             <div id="recognitionResult" class="tag-list"></div>
             <h2 id="listingTitle">等待生成</h2>
             <p id="listingDescription">点击“生成文案”或“发布商品”后，系统会生成标题、描述、估价和风控提示。</p>
+            <span id="listingProvider" class="ai-source-badge" hidden></span>
             <label class="seller-price-field">发布价格<input id="sellerPriceInput" type="number" min="1" step="1" placeholder="填写你的挂牌价" /></label>
             <div class="publish-actions">
               <button id="publishProductBtn">发布商品</button>
@@ -227,7 +228,13 @@
 
         <section class="dual-panels">
           <div class="mini-panel">
-            <p class="kicker">基础估价</p>
+            <div class="mini-panel-head">
+              <div>
+                <p class="kicker">AI 智能估价</p>
+                <span id="publishEstimateProvider" class="ai-source-badge" hidden></span>
+              </div>
+              <button type="button" id="publishEstimateBtn" class="compact-action">开始估价</button>
+            </div>
             <strong id="suggestedPrice">--</strong>
             <span id="priceRange">等待估价</span>
             <div id="priceReason" class="reason-list"></div>

@@ -14,6 +14,10 @@ VALUES
     (N'运动户外', N'运动鞋、户外服饰、滑雪等校园运动商品。', 20),
     (N'生活用品', N'宿舍生活、家具、包袋等日常用品。', 30),
     (N'图书教材', N'教材、资料、考试书籍等低价高频商品。', 40),
+    (N'校园交通', N'电动车、自行车、电动滑板车等校园代步工具。', 50),
+    (N'服饰鞋包', N'服装、鞋履、背包和箱包等个人闲置。', 60),
+    (N'乐器音频', N'吉他、键盘乐器、麦克风和声卡等设备。', 70),
+    (N'美妆个护', N'符合平台交易规范的个护电器和未拆封用品。', 80),
     (N'其他', N'暂未归类的商品。', 99);
 GO
 
@@ -70,8 +74,4 @@ SELECT ProductId, SellerId, N'risk', N'local-fallback', TrustScore,
        N'{"summary":"首版种子数据，后续由AI风控接口写入真实评估结果。"}'
 FROM dbo.Products;
 
-INSERT INTO dbo.RiskLogs (ProductId, UserId, RiskType, RiskLevel, Message, RuleCode)
-SELECT ProductId, SellerId, N'price', N'medium', N'首版示例风险记录，用于验证风控日志表关联关系。', N'seed-demo'
-FROM dbo.Products
-WHERE OriginalPrice IS NOT NULL AND Price < OriginalPrice * 0.5;
 GO
